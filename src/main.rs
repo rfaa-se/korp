@@ -52,8 +52,6 @@ struct Input {
     mouse: Vec2<f32>,
 }
 
-struct InputEvent {}
-
 struct Uniform {
     buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
@@ -79,7 +77,6 @@ struct Vertex {
     origin_new: [f32; 2],
     color_old: u32,
     color_new: u32,
-    flags_data: u32,
 }
 
 #[derive(Copy, Clone)]
@@ -88,9 +85,16 @@ struct Vec2<T> {
     y: T,
 }
 
+#[derive(Copy, Clone)]
 struct Morph<T> {
     old: T,
     new: T,
+}
+
+#[derive(Copy, Clone)]
+struct Line {
+    start: Vec2<f32>,
+    end: Vec2<f32>,
 }
 
 #[derive(Copy, Clone)]
@@ -126,7 +130,7 @@ enum State {
 }
 
 impl Vertex {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 9] = wgpu::vertex_attr_array![
+    const ATTRIBUTES: [wgpu::VertexAttribute; 8] = wgpu::vertex_attr_array![
         0 => Float32x2,
         1 => Float32x2,
         2 => Float32x2,
@@ -135,7 +139,6 @@ impl Vertex {
         5 => Float32x2,
         6 => Uint32,
         7 => Uint32,
-        8 => Uint32,
     ];
 
     fn description() -> wgpu::VertexBufferLayout<'static> {
@@ -416,7 +419,7 @@ impl Renderer {
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("buffer"),
-            size: 1024,
+            size: 1024 * 10,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -570,18 +573,6 @@ impl Input {
     }
 }
 
-mod flags {
-    pub const NONE: u32 = 0 << 0;
-    pub const WIREFRAME: u32 = 1 << 0;
-
-    pub mod wireframe {
-        pub const NONE: u32 = 0 << 16;
-        pub const TOP: u32 = 1 << 16;
-        pub const LEFT: u32 = 2 << 16;
-        pub const RIGHT: u32 = 3 << 16;
-    }
-}
-
 impl Canvas {
     fn new() -> Self {
         Self {
@@ -594,6 +585,59 @@ impl Canvas {
         self.vertices.clear();
     }
 
+    fn draw_line(
+        &mut self,
+        line: Morph<Line>,
+        rotation: Morph<Vec2<f32>>,
+        origin: Morph<Vec2<f32>>,
+        color: Morph<Color>,
+    ) {
+        let t = |a: Vec2<f32>, b: Vec2<f32>| {
+            let dir = b - a;
+            let norm = dir.perp().normalize() * 0.5;
+            (a + norm, b + norm, b - norm, a - norm)
+        };
+
+        let (ov0, ov1, ov2, ov3) = t(line.old.start, line.old.end);
+        let (pv0, pv1, pv2, pv3) = t(line.new.start, line.new.end);
+
+        let v0 = Vertex {
+            position_old: ov0.into(),
+            position_new: pv0.into(),
+            rotation_old: rotation.old.into(),
+            rotation_new: rotation.new.into(),
+            origin_old: origin.old.into(),
+            origin_new: origin.new.into(),
+            color_old: color.old.into(),
+            color_new: color.new.into(),
+        };
+
+        let v1 = Vertex {
+            position_old: ov1.into(),
+            position_new: pv1.into(),
+            ..v0
+        };
+
+        let v2 = Vertex {
+            position_old: ov2.into(),
+            position_new: pv2.into(),
+            ..v0
+        };
+
+        let v3 = Vertex {
+            position_old: ov3.into(),
+            position_new: pv3.into(),
+            ..v0
+        };
+
+        self.vertices.push(v0);
+        self.vertices.push(v1);
+        self.vertices.push(v2);
+        self.vertices.push(v2);
+        self.vertices.push(v3);
+        self.vertices.push(v0);
+    }
+
     fn draw_triangle_filled(
         &mut self,
         triangle: Morph<Triangle>,
@@ -601,7 +645,32 @@ impl Canvas {
         origin: Morph<Vec2<f32>>,
         color: Morph<Color>,
     ) {
-        self.draw_triangle(triangle, rotation, origin, color, flags::NONE);
+        let top = Vertex {
+            position_old: triangle.old.top.into(),
+            position_new: triangle.new.top.into(),
+            rotation_old: rotation.old.into(),
+            rotation_new: rotation.new.into(),
+            origin_old: origin.old.into(),
+            origin_new: origin.new.into(),
+            color_old: color.old.into(),
+            color_new: color.new.into(),
+        };
+
+        let left = Vertex {
+            position_old: triangle.old.left.into(),
+            position_new: triangle.new.left.into(),
+            ..top
+        };
+
+        let right = Vertex {
+            position_old: triangle.old.right.into(),
+            position_new: triangle.new.right.into(),
+            ..top
+        };
+
+        self.vertices.push(top);
+        self.vertices.push(left);
+        self.vertices.push(right);
     }
 
     fn draw_triangle_lines(
@@ -611,46 +680,44 @@ impl Canvas {
         origin: Morph<Vec2<f32>>,
         color: Morph<Color>,
     ) {
-        self.draw_triangle(triangle, rotation, origin, color, flags::WIREFRAME);
-    }
+        let vertices = [
+            (triangle.old.top, triangle.new.top),
+            (triangle.old.left, triangle.new.left),
+            (triangle.old.right, triangle.new.right),
+        ];
 
-    fn draw_triangle(
-        &mut self,
-        triangle: Morph<Triangle>,
-        rotation: Morph<Vec2<f32>>,
-        origin: Morph<Vec2<f32>>,
-        color: Morph<Color>,
-        flags: u32,
-    ) {
-        let g = |o, n, d| Vertex {
-            position_old: o,
-            position_new: n,
-            rotation_old: rotation.old.into(),
-            rotation_new: rotation.new.into(),
-            origin_old: origin.old.into(),
-            origin_new: origin.new.into(),
-            color_old: color.old.into(),
-            color_new: color.new.into(),
-            flags_data: flags | d,
-        };
-
-        self.vertices.push(g(
-            triangle.old.top.into(),
-            triangle.new.top.into(),
-            flags::wireframe::TOP,
-        ));
-
-        self.vertices.push(g(
-            triangle.old.left.into(),
-            triangle.new.left.into(),
-            flags::wireframe::LEFT,
-        ));
-
-        self.vertices.push(g(
-            triangle.old.right.into(),
-            triangle.new.right.into(),
-            flags::wireframe::RIGHT,
-        ));
+        for i in 0..vertices.len() {
+            // TODO: the lines don't match up 100% with the filled version, fixable?
+            // let l = Line {
+            //     start: vertices[i].0
+            //         + match i {
+            //             0 => Vec2::new(0.5, 0.),
+            //             1 => Vec2::new(0.5, -0.5), // OK
+            //             _ => Vec2::new(-0.5, 0.),
+            //         },
+            //     end: vertices[(i + 1) % 3].0
+            //         + match i {
+            //             0 => Vec2::new(0.5, -0.),
+            //             1 => Vec2::new(-0.5, -0.5), // OK
+            //             _ => Vec2::new(-0.5, 0.),
+            //         },
+            // };
+            self.draw_line(
+                Morph {
+                    old: Line {
+                        start: vertices[i].0,
+                        end: vertices[(i + 1) % 3].0,
+                    },
+                    new: Line {
+                        start: vertices[i].1,
+                        end: vertices[(i + 1) % 3].1,
+                    },
+                },
+                rotation,
+                origin,
+                color,
+            );
+        }
     }
 
     fn draw_rectangle_filled(
@@ -660,7 +727,41 @@ impl Canvas {
         origin: Morph<Vec2<f32>>,
         color: Morph<Color>,
     ) {
-        self.draw_rectangle(rect, rotation, origin, color, flags::NONE);
+        let v1 = Vertex {
+            position_old: [rect.old.x, rect.old.y],
+            position_new: [rect.new.x, rect.new.y],
+            rotation_old: rotation.old.into(),
+            rotation_new: rotation.new.into(),
+            origin_old: origin.old.into(),
+            origin_new: origin.new.into(),
+            color_old: color.old.into(),
+            color_new: color.new.into(),
+        };
+
+        let v2 = Vertex {
+            position_old: [rect.old.x + rect.old.width, rect.old.y],
+            position_new: [rect.new.x + rect.new.width, rect.new.y],
+            ..v1
+        };
+
+        let v3 = Vertex {
+            position_old: [rect.old.x, rect.old.y + rect.old.height],
+            position_new: [rect.new.x, rect.new.y + rect.new.height],
+            ..v1
+        };
+
+        let v4 = Vertex {
+            position_old: [rect.old.x + rect.old.width, rect.old.y + rect.old.height],
+            position_new: [rect.new.x + rect.new.width, rect.new.y + rect.new.height],
+            ..v1
+        };
+
+        self.vertices.push(v1);
+        self.vertices.push(v2);
+        self.vertices.push(v3);
+        self.vertices.push(v2);
+        self.vertices.push(v4);
+        self.vertices.push(v3);
     }
 
     fn draw_rectangle_lines(
@@ -670,64 +771,81 @@ impl Canvas {
         origin: Morph<Vec2<f32>>,
         color: Morph<Color>,
     ) {
-        self.draw_rectangle(rect, rotation, origin, color, flags::WIREFRAME);
-    }
+        self.draw_line(
+            Morph {
+                old: Line {
+                    start: Vec2::new(rect.old.x, rect.old.y + 0.5),
+                    end: Vec2::new(rect.old.x + rect.old.width, rect.old.y + 0.5),
+                },
+                new: Line {
+                    start: Vec2::new(rect.new.x, rect.new.y + 0.5),
+                    end: Vec2::new(rect.new.x + rect.new.width, rect.new.y + 0.5),
+                },
+            },
+            rotation,
+            origin,
+            color,
+        );
 
-    fn draw_rectangle(
-        &mut self,
-        rect: Morph<Rectangle>,
-        rotation: Morph<Vec2<f32>>,
-        origin: Morph<Vec2<f32>>,
-        color: Morph<Color>,
-        flags: u32,
-    ) {
-        let g = |o, n, d| Vertex {
-            position_old: o,
-            position_new: n,
-            rotation_old: rotation.old.into(),
-            rotation_new: rotation.new.into(),
-            origin_old: origin.old.into(),
-            origin_new: origin.new.into(),
-            color_old: color.old.into(),
-            color_new: color.new.into(),
-            flags_data: flags | d,
-        };
+        self.draw_line(
+            Morph {
+                old: Line {
+                    start: Vec2::new(rect.old.x + rect.old.width - 0.5, rect.old.y),
+                    end: Vec2::new(
+                        rect.old.x + rect.old.width - 0.5,
+                        rect.old.y + rect.old.height,
+                    ),
+                },
+                new: Line {
+                    start: Vec2::new(rect.new.x + rect.new.width - 0.5, rect.new.y),
+                    end: Vec2::new(
+                        rect.new.x + rect.new.width - 0.5,
+                        rect.new.y + rect.new.height,
+                    ),
+                },
+            },
+            rotation,
+            origin,
+            color,
+        );
 
-        self.vertices.push(g(
-            Vec2::new(rect.old.x, rect.old.y).into(),
-            Vec2::new(rect.new.x, rect.new.y).into(),
-            flags::wireframe::TOP,
-        ));
+        self.draw_line(
+            Morph {
+                old: Line {
+                    start: Vec2::new(
+                        rect.old.x + rect.old.width,
+                        rect.old.y + rect.old.height - 0.5,
+                    ),
+                    end: Vec2::new(rect.old.x, rect.old.y + rect.old.height - 0.5),
+                },
+                new: Line {
+                    start: Vec2::new(
+                        rect.new.x + rect.new.width,
+                        rect.new.y + rect.new.height - 0.5,
+                    ),
+                    end: Vec2::new(rect.new.x, rect.new.y + rect.new.height - 0.5),
+                },
+            },
+            rotation,
+            origin,
+            color,
+        );
 
-        self.vertices.push(g(
-            Vec2::new(rect.old.x + rect.old.width, rect.old.y).into(),
-            Vec2::new(rect.new.x + rect.new.width, rect.new.y).into(),
-            flags::wireframe::LEFT,
-        ));
-
-        self.vertices.push(g(
-            Vec2::new(rect.old.x, rect.old.y + rect.old.height).into(),
-            Vec2::new(rect.new.x, rect.new.y + rect.old.height).into(),
-            flags::wireframe::RIGHT,
-        ));
-
-        self.vertices.push(g(
-            Vec2::new(rect.old.x + rect.old.width, rect.old.y).into(),
-            Vec2::new(rect.new.x + rect.new.width, rect.new.y).into(),
-            flags::wireframe::TOP,
-        ));
-
-        self.vertices.push(g(
-            Vec2::new(rect.old.x + rect.old.width, rect.old.y + rect.old.height).into(),
-            Vec2::new(rect.new.x + rect.new.width, rect.new.y + rect.new.height).into(),
-            flags::wireframe::LEFT,
-        ));
-
-        self.vertices.push(g(
-            Vec2::new(rect.old.x, rect.old.y + rect.old.height).into(),
-            Vec2::new(rect.new.x, rect.new.y + rect.old.height).into(),
-            flags::wireframe::RIGHT,
-        ));
+        self.draw_line(
+            Morph {
+                old: Line {
+                    start: Vec2::new(rect.old.x + 0.5, rect.old.y + rect.old.height),
+                    end: Vec2::new(rect.old.x + 0.5, rect.old.y),
+                },
+                new: Line {
+                    start: Vec2::new(rect.new.x + 0.5, rect.new.y + rect.new.height),
+                    end: Vec2::new(rect.new.x + 0.5, rect.new.y),
+                },
+            },
+            rotation,
+            origin,
+            color,
+        );
     }
 }
 
@@ -747,8 +865,32 @@ impl<T> From<Vec2<T>> for [T; 2] {
 }
 
 impl<T> Vec2<T> {
-    fn new(x: T, y: T) -> Self {
+    const fn new(x: T, y: T) -> Self {
         Self { x, y }
+    }
+}
+
+impl Vec2<f32> {
+    fn perp(self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
+
+    fn normalize(self) -> Self {
+        Self {
+            x: self.x / self.len(),
+            y: self.y / self.len(),
+        }
+    }
+
+    fn len(&self) -> f32 {
+        self.dot(*self).sqrt()
+    }
+
+    fn dot(&self, v: Vec2<f32>) -> f32 {
+        self.x * v.x + self.y * v.y
     }
 }
 
@@ -759,11 +901,11 @@ impl<T> Morph<T> {
 }
 
 impl Color {
-    // const BLACK: Color = Color::new(0, 0, 0, 255);
-    // const WHITE: Color = Color::new(255, 255, 255, 255);
-    // const RED: Color = Color::new(255, 0, 0, 255);
+    const BLACK: Color = Color::new(0, 0, 0, 255);
+    const WHITE: Color = Color::new(255, 255, 255, 255);
+    const RED: Color = Color::new(255, 0, 0, 255);
     const GREEN: Color = Color::new(0, 255, 0, 255);
-    // const BLUE: Color = Color::new(0, 0, 255, 255);
+    const BLUE: Color = Color::new(0, 0, 255, 255);
 
     const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
@@ -799,6 +941,7 @@ struct Korp {
     down: bool,
     left: bool,
     right: bool,
+    toggle: bool,
     key_bindings: KeyBindings,
 }
 
@@ -837,7 +980,7 @@ struct RectShape {
 }
 
 trait Drawable {
-    fn draw(&self, canvas: &mut Canvas);
+    fn draw(&self, canvas: &mut Canvas, toggle: bool);
 }
 
 impl KeyBindings {
@@ -884,7 +1027,11 @@ impl Core for Korp {
         self.left = input.down(&self.key_bindings.left);
         self.right = input.down(&self.key_bindings.right);
 
-        let rotation = Vec2 { x: 1.0, y: 0.0 };
+        if input.is_pressed(&winit::keyboard::KeyCode::F1) {
+            self.toggle = !self.toggle;
+        }
+
+        let rotation = Vec2 { x: 0.0, y: -1.0 };
 
         if input.is_pressed(&winit::keyboard::KeyCode::Space) {
             let body = Body {
@@ -924,13 +1071,13 @@ impl Core for Korp {
 
     fn render(&mut self, canvas: &mut Canvas) {
         for body in self.bodies.iter() {
-            body.draw(canvas);
+            body.draw(canvas, self.toggle);
         }
     }
 }
 
 impl Drawable for Morph<Body> {
-    fn draw(&self, canvas: &mut Canvas) {
+    fn draw(&self, canvas: &mut Canvas, toggle: bool) {
         let rotation = Morph {
             old: self.old.rotation,
             new: self.new.rotation,
@@ -948,26 +1095,50 @@ impl Drawable for Morph<Body> {
 
         match (self.old.shape, self.new.shape) {
             (Shape::Triangle(old), Shape::Triangle(new)) => {
-                canvas.draw_triangle_lines(
-                    Morph {
-                        old: Triangle::from(old.top, old.left, old.right, self.old.centroid),
-                        new: Triangle::from(new.top, new.left, new.right, self.new.centroid),
-                    },
-                    rotation,
-                    centroid,
-                    color,
-                );
+                if toggle {
+                    canvas.draw_triangle_lines(
+                        Morph {
+                            old: Triangle::from(old.top, old.left, old.right, self.old.centroid),
+                            new: Triangle::from(new.top, new.left, new.right, self.new.centroid),
+                        },
+                        rotation,
+                        centroid,
+                        color,
+                    );
+                } else {
+                    canvas.draw_triangle_filled(
+                        Morph {
+                            old: Triangle::from(old.top, old.left, old.right, self.old.centroid),
+                            new: Triangle::from(new.top, new.left, new.right, self.new.centroid),
+                        },
+                        rotation,
+                        centroid,
+                        color,
+                    );
+                }
             }
             (Shape::Rectangle(old), Shape::Rectangle(new)) => {
-                canvas.draw_rectangle_lines(
-                    Morph {
-                        old: Rectangle::from(old.width, old.height, self.old.centroid),
-                        new: Rectangle::from(new.width, new.height, self.new.centroid),
-                    },
-                    rotation,
-                    centroid,
-                    color,
-                );
+                if toggle {
+                    canvas.draw_rectangle_lines(
+                        Morph {
+                            old: Rectangle::from(old.width, old.height, self.old.centroid),
+                            new: Rectangle::from(new.width, new.height, self.new.centroid),
+                        },
+                        rotation,
+                        centroid,
+                        color,
+                    );
+                } else {
+                    canvas.draw_rectangle_filled(
+                        Morph {
+                            old: Rectangle::from(old.width, old.height, self.old.centroid),
+                            new: Rectangle::from(new.width, new.height, self.new.centroid),
+                        },
+                        rotation,
+                        centroid,
+                        color,
+                    );
+                }
             }
             // TODO: can't morph between different shapes, draw old or new?
             _ => (),
@@ -983,6 +1154,7 @@ impl Korp {
             down: false,
             left: false,
             right: false,
+            toggle: false,
             key_bindings: KeyBindings::new(),
         }
     }
@@ -1000,6 +1172,14 @@ impl std::ops::AddAssign for Vec2<f32> {
     fn add_assign(&mut self, rhs: Self) {
         self.x += rhs.x;
         self.y += rhs.y;
+    }
+}
+
+impl std::ops::Sub for Vec2<f32> {
+    type Output = Vec2<f32>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vec2::new(self.x - rhs.x, self.y - rhs.y)
     }
 }
 
