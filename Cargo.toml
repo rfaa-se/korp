@@ -3,8 +3,13 @@ name = "korp"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = [
+  "crates/korp_engine",
+  "crates/korp_math"
+]
+
 [dependencies]
-bytemuck = { version = "1.24.0", features = ["derive"] }
-pollster = "0.4.0"
-wgpu = "27.0.1"
-winit = "0.30.12"
+korp_engine = { path = "crates/korp_engine" }
+korp_math = { path = "crates/korp_math" }
+
