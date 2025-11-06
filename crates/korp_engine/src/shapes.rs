@@ -23,21 +23,31 @@ pub struct Rectangle {
 
 impl Triangle {
     pub fn from(
-        top: Vec2<f32>,
-        left: Vec2<f32>,
-        right: Vec2<f32>,
-        centroid: Vec2<f32>,
+        top: impl Into<Vec2<f32>>,
+        left: impl Into<Vec2<f32>>,
+        right: impl Into<Vec2<f32>>,
+        centroid: impl Into<Vec2<f32>>,
     ) -> Triangle {
+        let centroid = centroid.into();
+
         Triangle {
-            top: centroid + top,
-            left: centroid + left,
-            right: centroid + right,
+            top: centroid + top.into(),
+            left: centroid + left.into(),
+            right: centroid + right.into(),
         }
     }
 }
 
 impl Rectangle {
-    pub fn from(width: f32, height: f32, centroid: Vec2<f32>) -> Rectangle {
+    pub fn from(
+        width: impl Into<f32>,
+        height: impl Into<f32>,
+        centroid: impl Into<Vec2<f32>>,
+    ) -> Rectangle {
+        let width = width.into();
+        let height = height.into();
+        let centroid = centroid.into();
+
         Rectangle {
             x: centroid.x - width * 0.5,
             y: centroid.y - height * 0.5,

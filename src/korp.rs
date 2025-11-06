@@ -5,7 +5,7 @@ use korp_engine::{
     misc::Morph,
     renderer::Canvas,
 };
-use korp_math::Vec2;
+use korp_math::{Flint, Vec2};
 
 use crate::components::{Body, Rectangle, Shape, Triangle, traits::Drawable};
 
@@ -42,27 +42,24 @@ impl Korp {
 
 impl Core for Korp {
     fn update(&mut self) {
-        let r = |p: Vec2<f32>, a: f32| {
-            let rad = a.to_radians();
-            let (sin, cos) = rad.sin_cos();
-            Vec2::new(p.x * cos - p.y * sin, p.x * sin + p.y * cos)
-        };
+        let speed = 20;
+        let rotation_speed: Flint = 12.into();
 
         for body in self.bodies.iter_mut() {
             body.old = body.new;
 
             if self.up {
-                body.new.centroid += body.new.rotation * 20.0;
+                body.new.centroid += body.new.rotation * speed;
             }
 
             if self.down {}
 
             if self.left {
-                body.new.rotation = r(body.new.rotation, -12.0);
+                body.new.rotation = body.new.rotation.rotated(-rotation_speed);
             }
 
             if self.right {
-                body.new.rotation = r(body.new.rotation, 12.0);
+                body.new.rotation = body.new.rotation.rotated(rotation_speed);
             }
         }
     }
@@ -77,16 +74,19 @@ impl Core for Korp {
             self.toggle = !self.toggle;
         }
 
-        let rotation = Vec2 { x: 0.0, y: -1.0 };
+        let rotation = Vec2 {
+            x: Flint::ZERO,
+            y: Flint::NEG_ONE,
+        };
 
         if input.is_pressed(&KeyCode::Space) {
             let body = Body {
-                centroid: input.mouse,
+                centroid: Vec2::new((input.mouse.x as i16).into(), (input.mouse.y as i16).into()),
                 rotation,
                 shape: Shape::Triangle(Triangle {
-                    top: Vec2::new(0.0, -50.0),
-                    left: Vec2::new(-30.0, 25.0),
-                    right: Vec2::new(30.0, 25.0),
+                    top: Vec2::new(0.into(), (-50 as i16).into()),
+                    left: Vec2::new((-30 as i16).into(), 25.into()),
+                    right: Vec2::new(30.into(), 25.into()),
                 }),
                 color: Color::GREEN,
             };
@@ -99,11 +99,11 @@ impl Core for Korp {
 
         if input.is_pressed(&KeyCode::AltLeft) {
             let body = Body {
-                centroid: input.mouse,
+                centroid: Vec2::new((input.mouse.x as i16).into(), (input.mouse.y as i16).into()),
                 rotation,
                 shape: Shape::Rectangle(Rectangle {
-                    width: 60.0,
-                    height: 40.0,
+                    width: 60.into(),
+                    height: 40.into(),
                 }),
                 color: Color::GREEN,
             };

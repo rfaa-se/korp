@@ -1,12 +1,12 @@
 use korp_engine::color::Color;
-use korp_math::Vec2;
+use korp_math::{Flint, Vec2};
 
 pub mod traits;
 
 #[derive(Copy, Clone)]
 pub struct Body {
-    pub centroid: Vec2<f32>,
-    pub rotation: Vec2<f32>,
+    pub centroid: Vec2<Flint>,
+    pub rotation: Vec2<Flint>,
     pub shape: Shape,
     pub color: Color,
 }
@@ -19,13 +19,13 @@ pub enum Shape {
 
 #[derive(Copy, Clone)]
 pub struct Triangle {
-    pub top: Vec2<f32>,
-    pub left: Vec2<f32>,
-    pub right: Vec2<f32>,
+    pub top: Vec2<Flint>,
+    pub left: Vec2<Flint>,
+    pub right: Vec2<Flint>,
 }
 
 #[derive(Copy, Clone)]
 pub struct Rectangle {
-    pub width: f32,
-    pub height: f32,
+    pub width: Flint,
+    pub height: Flint,
 }

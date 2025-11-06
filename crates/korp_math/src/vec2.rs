@@ -1,3 +1,7 @@
+use std::ops::{Add, AddAssign, Mul, Sub};
+
+use crate::Flint;
+
 #[derive(Copy, Clone)]
 pub struct Vec2<T> {
     pub x: T,
@@ -17,30 +21,72 @@ impl<T> Vec2<T> {
 }
 
 impl Vec2<f32> {
-    pub fn perp(self) -> Self {
+    pub fn perp(&self) -> Self {
         Self {
             x: -self.y,
             y: self.x,
         }
     }
 
-    pub fn normalize(self) -> Self {
+    pub fn normalized(&self) -> Self {
+        let len = self.len();
         Self {
-            x: self.x / self.len(),
-            y: self.y / self.len(),
+            x: self.x / len,
+            y: self.y / len,
         }
     }
 
     pub fn len(&self) -> f32 {
-        self.dot(*self).sqrt()
+        self.dot(self).sqrt()
     }
 
-    pub fn dot(&self, v: Vec2<f32>) -> f32 {
+    pub fn dot(&self, v: &Vec2<f32>) -> f32 {
         self.x * v.x + self.y * v.y
     }
 }
 
-impl std::ops::Add for Vec2<f32> {
+impl Vec2<Flint> {
+    pub fn perp(&self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
+
+    pub fn normalized(&mut self) -> Self {
+        let len = self.len();
+        Self {
+            x: self.x / len,
+            y: self.y / len,
+        }
+    }
+
+    pub fn len(&self) -> Flint {
+        self.dot(self).sqrt()
+    }
+
+    pub fn dot(&self, v: &Vec2<Flint>) -> Flint {
+        self.x * v.x + self.y * v.y
+    }
+
+    pub fn rotated(&self, degrees: Flint) -> Self {
+        let radians = degrees.to_radians();
+        let (sin, cos) = radians.sin_cos();
+
+        let x = self.x * cos - self.y * sin;
+        let y = self.x * sin + self.y * cos;
+
+        Self { x, y }
+    }
+}
+
+impl From<Vec2<Flint>> for Vec2<f32> {
+    fn from(value: Vec2<Flint>) -> Self {
+        Vec2::new(value.x.into(), value.y.into())
+    }
+}
+
+impl Add for Vec2<f32> {
     type Output = Vec2<f32>;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -48,25 +94,54 @@ impl std::ops::Add for Vec2<f32> {
     }
 }
 
-impl std::ops::AddAssign for Vec2<f32> {
+impl AddAssign for Vec2<f32> {
     fn add_assign(&mut self, rhs: Self) {
         self.x += rhs.x;
         self.y += rhs.y;
     }
 }
 
-impl std::ops::Sub for Vec2<f32> {
-    type Output = Vec2<f32>;
+impl Sub for Vec2<f32> {
+    type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
         Vec2::new(self.x - rhs.x, self.y - rhs.y)
     }
 }
 
-impl std::ops::Mul<f32> for Vec2<f32> {
-    type Output = Vec2<f32>;
+impl Mul<f32> for Vec2<f32> {
+    type Output = Self;
 
     fn mul(self, rhs: f32) -> Self::Output {
         Vec2::new(self.x * rhs, self.y * rhs)
+    }
+}
+
+impl Mul<Flint> for Vec2<Flint> {
+    type Output = Self;
+
+    fn mul(self, rhs: Flint) -> Self::Output {
+        Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        }
+    }
+}
+
+impl Mul<i16> for Vec2<Flint> {
+    type Output = Self;
+
+    fn mul(self, rhs: i16) -> Self::Output {
+        Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        }
+    }
+}
+
+impl AddAssign for Vec2<Flint> {
+    fn add_assign(&mut self, rhs: Self) {
+        self.x += rhs.x;
+        self.y += rhs.y;
     }
 }
