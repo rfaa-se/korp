@@ -4,7 +4,7 @@ use korp_engine::{
     shapes::{Rectangle, Triangle},
 };
 
-use crate::components::{Body, Shape};
+use crate::ecs::components::{Body, Shape};
 
 pub trait Drawable {
     fn draw(&self, canvas: &mut Canvas, toggle: bool);

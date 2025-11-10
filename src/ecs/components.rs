@@ -3,6 +3,17 @@ use korp_math::{Flint, Vec2};
 
 pub mod traits;
 
+pub struct Motion {
+    pub velocity: Vec2<Flint>,
+    pub speed_maximum: Flint,
+    pub speed_minimum: Flint,
+    pub acceleration: Flint,
+    pub rotation_speed: Flint,
+    pub rotation_speed_maximum: Flint,
+    pub rotation_speed_minimum: Flint,
+    pub rotation_acceleration: Flint,
+}
+
 #[derive(Copy, Clone)]
 pub struct Body {
     pub centroid: Vec2<Flint>,

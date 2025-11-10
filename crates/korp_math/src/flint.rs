@@ -1,12 +1,13 @@
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, Neg, Sub, SubAssign};
 
-#[derive(Copy, Clone, Default, Eq, PartialEq)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Flint {
     pub raw: i32,
 }
 
 impl Flint {
     pub const POINT_FIVE: u16 = Self::HALF_SCALE as u16;
+    pub const POINT_ONE: u16 = Self::POINT_FIVE / 5;
 
     pub const ZERO: Self = Self::new(0, 0);
     pub const ONE: Self = Self::new(1, 0);
@@ -151,6 +152,12 @@ impl AddAssign for Flint {
 impl AddAssign<i16> for Flint {
     fn add_assign(&mut self, rhs: i16) {
         self.raw += (rhs as i32) << Self::SHIFT;
+    }
+}
+
+impl SubAssign for Flint {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.raw -= rhs.raw;
     }
 }
 

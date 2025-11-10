@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Mul, Sub};
+use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
 
 use crate::Flint;
 
@@ -30,6 +30,11 @@ impl Vec2<f32> {
 
     pub fn normalized(&self) -> Self {
         let len = self.len();
+
+        if len == 0.0 {
+            return Self { x: 0.0, y: 0.0 };
+        }
+
         Self {
             x: self.x / len,
             y: self.y / len,
@@ -46,6 +51,8 @@ impl Vec2<f32> {
 }
 
 impl Vec2<Flint> {
+    pub const ZERO: Vec2<Flint> = Vec2::new(Flint::ZERO, Flint::ZERO);
+
     pub fn perp(&self) -> Self {
         Self {
             x: -self.y,
@@ -53,8 +60,16 @@ impl Vec2<Flint> {
         }
     }
 
-    pub fn normalized(&mut self) -> Self {
+    pub fn normalized(&self) -> Self {
         let len = self.len();
+
+        if len == Flint::ZERO {
+            return Self {
+                x: Flint::ZERO,
+                y: Flint::ZERO,
+            };
+        }
+
         Self {
             x: self.x / len,
             y: self.y / len,
@@ -62,7 +77,11 @@ impl Vec2<Flint> {
     }
 
     pub fn len(&self) -> Flint {
-        self.dot(self).sqrt()
+        self.len_sqr().sqrt()
+    }
+
+    pub fn len_sqr(&self) -> Flint {
+        self.dot(&self)
     }
 
     pub fn dot(&self, v: &Vec2<Flint>) -> Flint {
@@ -143,5 +162,12 @@ impl AddAssign for Vec2<Flint> {
     fn add_assign(&mut self, rhs: Self) {
         self.x += rhs.x;
         self.y += rhs.y;
+    }
+}
+
+impl SubAssign for Vec2<Flint> {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
     }
 }
