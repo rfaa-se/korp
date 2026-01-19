@@ -1,6 +1,6 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, Neg, Sub, SubAssign};
 
-#[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct Flint {
     pub raw: i32,
 }
@@ -9,6 +9,8 @@ impl Flint {
     pub const POINT_FIVE: u16 = Self::HALF_SCALE as u16;
     pub const POINT_ONE: u16 = Self::POINT_FIVE / 5;
 
+    pub const ZERO_FIVE: Self = Self::new(0, Self::POINT_FIVE);
+
     pub const ZERO: Self = Self::new(0, 0);
     pub const ONE: Self = Self::new(1, 0);
     pub const NEG_ONE: Self = Self::new(-1, 0);
@@ -16,6 +18,7 @@ impl Flint {
     pub const PI: Self = Self::from_raw((31415 * Self::SCALE) / 10000);
     pub const FRAC_PI_2: Self = Self::from_raw(Self::PI.raw / 2);
     pub const DEG2RAD: Self = Self::from_raw(Self::PI.raw / 180);
+    pub const RAD2DEG: Self = Self::from_raw(180 / Self::PI.raw);
 
     const SHIFT: i32 = 16;
     const SCALE: i32 = 1 << Self::SHIFT;
@@ -95,6 +98,11 @@ impl Flint {
     #[inline]
     pub fn to_radians(self) -> Self {
         self * Self::DEG2RAD
+    }
+
+    #[inline]
+    pub fn to_degrees(self) -> Self {
+        self * Self::RAD2DEG
     }
 
     #[inline]

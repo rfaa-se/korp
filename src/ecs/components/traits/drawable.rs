@@ -75,7 +75,7 @@ impl Drawable for Morph<Body> {
                 }
             }
             // TODO: can't morph between different shapes, draw old or new?
-            _ => (),
+            _ => panic!("wtf drawable shapes"),
         }
     }
 }

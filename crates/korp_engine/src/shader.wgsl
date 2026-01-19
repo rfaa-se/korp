@@ -32,7 +32,12 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     let color = mix(unpack(in.color_old), unpack(in.color_new), uniform.alpha);
 
     let offset = position - origin;
-    let rotated = rotate(offset, vec2(-rotation.y, rotation.x));
+    // let rotated = rotate(offset, vec2(-rotation.y, rotation.x));
+    // let rotation2 = vec2(-rotation.y, rotation.x);
+    let rotated = rotate(offset, rotation);
+    // let rotated = offset;
+    // let rotated = rotate(offset, vec2(rotation.x, -1.0 * rotation.y));
+    // let rotated2 = vec2(rotated.x, -1 * rotated.y);
     let world_position = rotated + origin;
 
     out.clip_position = uniform.view_projection *  vec4(world_position, 0.0, 1.0);

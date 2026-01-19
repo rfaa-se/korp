@@ -1,7 +1,28 @@
-use korp_engine::color::Color;
+use korp_engine::{color::Color, misc::Morph};
 use korp_math::{Flint, Vec2};
 
+use crate::ecs::{entities::Entity, sparse_set::SparseSet};
+
 pub mod traits;
+
+pub struct Components {
+    pub bodies: SparseSet<Morph<Body>>,
+    pub motions: SparseSet<Motion>,
+}
+
+impl Components {
+    pub fn new() -> Self {
+        Self {
+            bodies: SparseSet::new(u16::MAX as usize),
+            motions: SparseSet::new(u16::MAX as usize),
+        }
+    }
+
+    pub fn destroy(&mut self, entity: Entity) {
+        self.bodies.remove(entity);
+        self.motions.remove(entity);
+    }
+}
 
 pub struct Motion {
     pub velocity: Vec2<Flint>,
@@ -22,20 +43,20 @@ pub struct Body {
     pub color: Color,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Shape {
     Triangle(Triangle),
     Rectangle(Rectangle),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Triangle {
     pub top: Vec2<Flint>,
     pub left: Vec2<Flint>,
     pub right: Vec2<Flint>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Rectangle {
     pub width: Flint,
     pub height: Flint,

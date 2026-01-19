@@ -6,13 +6,15 @@ use std::{
 use korp_math::Vec2;
 
 use crate::input::Input;
-use crate::renderer::Canvas;
-use crate::renderer::Renderer;
+use crate::renderer::{Camera, Canvas, Renderer};
 
 pub trait Core {
     fn update(&mut self);
     fn input(&mut self, input: &Input);
     fn render(&mut self, canvas: &mut Canvas);
+    // fn init(&mut self);
+    // fn exit(&mut self);
+    // fn resize(&mut self, width: u32, height: u32);
 }
 
 pub struct Engine<T: Core> {

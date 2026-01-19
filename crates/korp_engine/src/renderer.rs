@@ -1,5 +1,7 @@
+mod camera;
 mod canvas;
 
+pub use camera::*;
 pub use canvas::*;
 
 pub struct Renderer {
@@ -11,6 +13,7 @@ pub struct Renderer {
     buffer: wgpu::Buffer,
     uniform: Uniform,
     pub(crate) canvas: Canvas,
+    pub(crate) camera: Camera,
 }
 
 struct Uniform {
@@ -156,7 +159,7 @@ impl Renderer {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("pipeline_layout"),
             bind_group_layouts: &[&uniform.bind_group_layout],
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("pipeline"),
@@ -180,7 +183,7 @@ impl Renderer {
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -193,6 +196,7 @@ impl Renderer {
 
         Self {
             canvas: Canvas::new(),
+            camera: Camera::new(width as f32, height as f32),
             surface,
             surface_configuration,
             device,
@@ -208,6 +212,8 @@ impl Renderer {
         self.surface_configuration.height = height;
         self.surface
             .configure(&self.device, &self.surface_configuration);
+        self.camera.width = width as f32;
+        self.camera.height = height as f32;
     }
 
     pub(crate) fn prepare(&mut self) {
@@ -245,16 +251,10 @@ impl Renderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
-            let view_projection = Self::ortho_lh_zo(
-                0.0,
-                self.surface_configuration.width as f32,
-                self.surface_configuration.height as f32,
-                0.0,
-                0.0,
-                1.0,
-            );
+            let view_projection = self.camera.view_projection(alpha);
 
             self.queue.write_buffer(
                 &self.uniform.buffer,
@@ -266,6 +266,8 @@ impl Renderer {
                 }]),
             );
 
+            // TODO: read more about viewport
+            // render_pass.set_viewport(x, y, w, h, min_depth, max_depth);
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &self.uniform.bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.buffer.slice(..));
@@ -275,27 +277,6 @@ impl Renderer {
 
         self.queue.submit(std::iter::once(encoder.finish()));
         surface_texture.present();
-    }
-
-    fn ortho_lh_zo(
-        left: f32,
-        right: f32,
-        bottom: f32,
-        top: f32,
-        near: f32,
-        far: f32,
-    ) -> [[f32; 4]; 4] {
-        [
-            [2.0 / (right - left), 0.0, 0.0, 0.0],
-            [0.0, 2.0 / (top - bottom), 0.0, 0.0],
-            [0.0, 0.0, 1.0 / (far - near), 0.0],
-            [
-                -(right + left) / (right - left),
-                -(top + bottom) / (top - bottom),
-                -near / (far - near),
-                1.0,
-            ],
-        ]
     }
 
     pub(crate) fn update(&mut self) {

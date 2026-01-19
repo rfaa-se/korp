@@ -1,13 +1,16 @@
 use korp_engine::{
     Core,
+    color::Color,
     input::{Input, KeyCode},
-    renderer::Canvas,
+    misc::Morph,
+    renderer::{Camera, Canvas},
+    shapes::Rectangle,
 };
 use korp_math::{Flint, Vec2};
 
 use crate::{
     commands::{Command, Spawn},
-    ecs::cosmos::Cosmos,
+    ecs::{cosmos::Cosmos, entities::Entity},
 };
 
 pub struct Korp {
@@ -16,6 +19,9 @@ pub struct Korp {
     commands: Vec<Command>,
     actions: Vec<Action>,
     toggle: bool,
+    camera: Camera,
+    camera_target: Morph<Vec2<f32>>,
+    player_id: Entity,
 }
 
 struct KeyBindings {
@@ -41,6 +47,13 @@ impl Korp {
             commands: Vec::new(),
             actions: Vec::new(),
             toggle: false,
+            camera: Camera::new(1000.0, 1000.0),
+            camera_target: Morph::one(Vec2::new(0.0, 0.0)),
+            // TODO: need a way to track local player entity
+            player_id: Entity {
+                index: 0,
+                generation: 0,
+            },
         }
     }
 }
@@ -61,6 +74,18 @@ impl Core for Korp {
         }
 
         self.cosmos.update(&self.commands);
+
+        // make sure the camera tracks the player
+        if let Some(body) = self.cosmos.components.bodies.get(&self.player_id) {
+            self.camera_target.old = body.old.centroid.into();
+            self.camera_target.new = body.new.centroid.into();
+        } else {
+            // when player is dead, set the new value as the old to prevent wobbling
+            // TODO: listen to when player dies and set the camera target then, once
+            self.camera_target.old = self.camera_target.new;
+        }
+
+        self.camera.set_position(self.camera_target);
     }
 
     fn input(&mut self, input: &Input) {
@@ -118,7 +143,23 @@ impl Core for Korp {
     }
 
     fn render(&mut self, canvas: &mut Canvas) {
-        self.cosmos.render(canvas, self.toggle);
+        {
+            let scope = canvas.begin(&self.camera);
+            self.cosmos.render(scope.canvas, self.toggle);
+        }
+
+        // draw ui
+        canvas.draw_rectangle_lines(
+            Morph::one(Rectangle {
+                x: 0.0,
+                y: 400.0,
+                width: 200.0,
+                height: 200.0,
+            }),
+            Morph::one(Vec2::new(0.0, 0.0)),
+            Morph::one(Vec2::new(0.0, 0.0)),
+            Morph::one(Color::GREEN),
+        );
     }
 }
 

@@ -1,6 +1,11 @@
+use korp_engine::shapes::Rectangle;
 use korp_math::{Flint, Vec2};
 
-use crate::ecs::cosmos::Components;
+use crate::ecs::{
+    components::{Components, traits::Hitboxable},
+    entities::Entity,
+    forge::Forge,
+};
 
 pub const COSMIC_DRAG: Flint = Flint::new(0, Flint::POINT_ONE * 2);
 
@@ -65,5 +70,19 @@ pub fn motion(components: &mut Components) {
         }
 
         body.new.centroid += motion.velocity;
+    }
+}
+
+pub fn out_of_bounds(bounds: &Rectangle<Flint>, forge: &mut Forge, components: &mut Components) {
+    let mut hitboxes = Vec::<(Entity, Rectangle<Flint>)>::with_capacity(components.bodies.len());
+
+    for (&entity, body) in components.bodies.iter() {
+        hitboxes.push((entity, body.hitbox()));
+    }
+
+    for (entity, hitbox) in hitboxes {
+        if !bounds.overlaps(&hitbox) {
+            forge.destroy(entity, components);
+        }
     }
 }

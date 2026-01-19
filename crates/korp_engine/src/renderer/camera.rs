@@ -1,0 +1,54 @@
+use crate::misc::Morph;
+use korp_math::Vec2;
+
+pub struct Camera {
+    pub(super) width: f32,
+    pub(super) height: f32,
+    position: Morph<Vec2<f32>>,
+}
+
+impl Camera {
+    pub fn new(width: f32, height: f32) -> Self {
+        Self {
+            width,
+            height,
+            position: Morph::one(Vec2::new(0.0, 0.0)),
+        }
+    }
+
+    pub fn set_position(&mut self, target: Morph<Vec2<f32>>) {
+        self.position = target;
+    }
+
+    pub(crate) fn view_projection(&self, alpha: f32) -> [[f32; 4]; 4] {
+        // ensure smooth camera movement by lerping between old and new target
+        let lerp = |a, b| a + (b - a) * alpha;
+        let target = Vec2::new(
+            lerp(self.position.old.x, self.position.new.x),
+            lerp(self.position.old.y, self.position.new.y),
+        );
+
+        let left = target.x - self.width * 0.5;
+        let right = target.x + self.width * 0.5;
+        let top = target.y + self.height * 0.5;
+        let bottom = target.y - self.height * 0.5;
+        let near = 0.0;
+        let far = 1.0;
+
+        ortho(left, right, bottom, top, near, far)
+    }
+}
+
+fn ortho(left: f32, right: f32, top: f32, bottom: f32, near: f32, far: f32) -> [[f32; 4]; 4] {
+    [
+        [2.0 / (right - left), 0.0, 0.0, 0.0],
+        [0.0, 2.0 / (top - bottom), 0.0, 0.0],
+        [0.0, 0.0, 1.0 / (far - near), 0.0],
+        [
+            -(right + left) / (right - left),
+            -(top + bottom) / (top - bottom),
+            -(near / (far - near)),
+            1.0,
+        ],
+    ]
+}

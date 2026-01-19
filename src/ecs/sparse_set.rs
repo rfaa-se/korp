@@ -28,12 +28,46 @@ impl<T> SparseSet<T> {
         self.entities.push(entity);
     }
 
+    pub fn remove(&mut self, entity: Entity) {
+        let sparse_index = entity.index as usize;
+        if sparse_index >= Self::TOMBSTONE {
+            return;
+        }
+
+        let dense_index = self.sparse[sparse_index];
+        if dense_index == Self::TOMBSTONE {
+            return;
+        }
+
+        if self.entities[dense_index].generation != entity.generation {
+            return;
+        }
+
+        self.sparse[sparse_index] = Self::TOMBSTONE;
+        let last_index = self.dense.len() - 1;
+
+        if dense_index != last_index {
+            self.dense.swap(dense_index, last_index);
+            self.entities.swap(dense_index, last_index);
+
+            let moved = self.entities[dense_index];
+            self.sparse[moved.index as usize] = dense_index;
+        }
+
+        self.dense.pop();
+        self.entities.pop();
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (&Entity, &T)> {
         self.entities.iter().zip(self.dense.iter())
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&Entity, &mut T)> {
         self.entities.iter().zip(self.dense.iter_mut())
+    }
+
+    pub fn len(&self) -> usize {
+        self.dense.len()
     }
 
     pub fn get(&self, entity: &Entity) -> Option<&T> {

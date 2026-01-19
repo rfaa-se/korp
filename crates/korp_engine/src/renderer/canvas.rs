@@ -3,13 +3,24 @@ use korp_math::Vec2;
 use crate::{
     color::Color,
     misc::Morph,
-    renderer::Vertex,
+    renderer::{Camera, Vertex},
     shapes::{Line, Rectangle, Triangle},
 };
 
 pub struct Canvas {
     pub(super) vertices: Vec<Vertex>,
     pub(super) clear_color: wgpu::Color,
+}
+
+pub struct ScopeCanvas<'a> {
+    pub canvas: &'a mut Canvas,
+    pub camera: &'a Camera,
+}
+
+impl Drop for ScopeCanvas<'_> {
+    fn drop(&mut self) {
+        // self.canvas.
+    }
 }
 
 impl Canvas {
@@ -24,9 +35,16 @@ impl Canvas {
         self.vertices.clear();
     }
 
+    pub fn begin<'a>(&'a mut self, camera: &'a Camera) -> ScopeCanvas<'a> {
+        ScopeCanvas {
+            canvas: self,
+            camera,
+        }
+    }
+
     pub fn draw_line(
         &mut self,
-        line: Morph<Line>,
+        line: Morph<Line<f32>>,
         rotation: Morph<Vec2<f32>>,
         origin: Morph<Vec2<f32>>,
         color: Morph<Color>,
@@ -38,11 +56,11 @@ impl Canvas {
         };
 
         let (ov0, ov1, ov2, ov3) = t(line.old.start, line.old.end);
-        let (pv0, pv1, pv2, pv3) = t(line.new.start, line.new.end);
+        let (nv0, nv1, nv2, nv3) = t(line.new.start, line.new.end);
 
         let v0 = Vertex {
             position_old: ov0.into(),
-            position_new: pv0.into(),
+            position_new: nv0.into(),
             rotation_old: rotation.old.into(),
             rotation_new: rotation.new.into(),
             origin_old: origin.old.into(),
@@ -53,19 +71,19 @@ impl Canvas {
 
         let v1 = Vertex {
             position_old: ov1.into(),
-            position_new: pv1.into(),
+            position_new: nv1.into(),
             ..v0
         };
 
         let v2 = Vertex {
             position_old: ov2.into(),
-            position_new: pv2.into(),
+            position_new: nv2.into(),
             ..v0
         };
 
         let v3 = Vertex {
             position_old: ov3.into(),
-            position_new: pv3.into(),
+            position_new: nv3.into(),
             ..v0
         };
 
@@ -79,7 +97,7 @@ impl Canvas {
 
     pub fn draw_triangle_filled(
         &mut self,
-        triangle: Morph<Triangle>,
+        triangle: Morph<Triangle<f32>>,
         rotation: Morph<Vec2<f32>>,
         origin: Morph<Vec2<f32>>,
         color: Morph<Color>,
@@ -114,7 +132,7 @@ impl Canvas {
 
     pub fn draw_triangle_lines(
         &mut self,
-        triangle: Morph<Triangle>,
+        triangle: Morph<Triangle<f32>>,
         rotation: Morph<Vec2<f32>>,
         origin: Morph<Vec2<f32>>,
         color: Morph<Color>,
@@ -161,7 +179,7 @@ impl Canvas {
 
     pub fn draw_rectangle_filled(
         &mut self,
-        rect: Morph<Rectangle>,
+        rect: Morph<Rectangle<f32>>,
         rotation: Morph<Vec2<f32>>,
         origin: Morph<Vec2<f32>>,
         color: Morph<Color>,
@@ -205,7 +223,7 @@ impl Canvas {
 
     pub fn draw_rectangle_lines(
         &mut self,
-        rect: Morph<Rectangle>,
+        rect: Morph<Rectangle<f32>>,
         rotation: Morph<Vec2<f32>>,
         origin: Morph<Vec2<f32>>,
         color: Morph<Color>,

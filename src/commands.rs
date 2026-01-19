@@ -1,6 +1,6 @@
 use korp_math::{Flint, Vec2};
 
-use crate::ecs::{cosmos::Components, entities::Entity, forge::Forge};
+use crate::ecs::{components::Components, entities::Entity, forge::Forge};
 
 pub enum Command {
     Accelerate(Entity),
