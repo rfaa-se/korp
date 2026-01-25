@@ -1,4 +1,4 @@
-use korp_engine::shapes::Rectangle;
+use korp_engine::{misc::Morph, shapes::Rectangle};
 use korp_math::{Flint, Vec2};
 
 use crate::ecs::{
@@ -10,14 +10,46 @@ use crate::ecs::{
 pub const COSMIC_DRAG: Flint = Flint::new(0, Flint::POINT_ONE * 2);
 
 pub fn morph_body(components: &mut Components) {
-    for (_, body) in components.bodies.iter_mut() {
+    for (_, body) in components.logic.bodies.iter_mut() {
         body.old = body.new;
     }
 }
 
+pub fn hitbox(components: &mut Components) {
+    for (&entity, body) in components.logic.bodies.iter() {
+        components.logic.hitboxes.insert(entity, body.hitbox());
+    }
+}
+
+pub fn morph_hitbox_render(components: &mut Components) {
+    for (_, hitbox) in components.render.hitboxes.iter_mut() {
+        hitbox.old = hitbox.new;
+    }
+}
+
+pub fn hitbox_render(components: &mut Components) {
+    for (&entity, lhb) in components.logic.hitboxes.iter() {
+        let rectangle = Rectangle {
+            x: lhb.x.to_f32(),
+            y: lhb.y.to_f32(),
+            width: lhb.width.to_f32(),
+            height: lhb.height.to_f32(),
+        };
+
+        if let Some(rhb) = components.render.hitboxes.get_mut(&entity) {
+            rhb.new = rectangle;
+        } else {
+            components
+                .render
+                .hitboxes
+                .insert(entity, Morph::one(rectangle));
+        }
+    }
+}
+
 pub fn motion(components: &mut Components) {
-    for (entity, motion) in components.motions.iter_mut() {
-        let Some(body) = components.bodies.get_mut(entity) else {
+    for (entity, motion) in components.logic.motions.iter_mut() {
+        let Some(body) = components.logic.bodies.get_mut(entity) else {
             continue;
         };
 
@@ -74,15 +106,15 @@ pub fn motion(components: &mut Components) {
 }
 
 pub fn out_of_bounds(bounds: &Rectangle<Flint>, forge: &mut Forge, components: &mut Components) {
-    let mut hitboxes = Vec::<(Entity, Rectangle<Flint>)>::with_capacity(components.bodies.len());
+    let mut dead = Vec::new();
 
-    for (&entity, body) in components.bodies.iter() {
-        hitboxes.push((entity, body.hitbox()));
+    for (&entity, hitbox) in components.logic.hitboxes.iter() {
+        if !bounds.overlaps(hitbox) {
+            dead.push(entity);
+        }
     }
 
-    for (entity, hitbox) in hitboxes {
-        if !bounds.overlaps(&hitbox) {
-            forge.destroy(entity, components);
-        }
+    for entity in dead {
+        forge.destroy(entity, components);
     }
 }

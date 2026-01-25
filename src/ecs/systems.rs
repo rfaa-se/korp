@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use korp_engine::{color::Color, renderer::Renderer, shapes::Rectangle};
-use korp_math::{Flint, Vec2};
+use korp_math::{Flint, Vec2, lerp};
 
 mod physics;
 
@@ -30,7 +30,10 @@ impl Executor {
         morph_body(components);
         execute_commands(components, forge, commands);
         motion(components);
+        hitbox(components);
         out_of_bounds(bounds, forge, components);
+        morph_hitbox_render(components);
+        hitbox_render(components);
     }
 }
 
@@ -49,18 +52,21 @@ impl Observer {
     ) {
         self.cosmos(bounds, renderer);
 
-        for (_, body) in components.bodies.iter() {
+        for (_, body) in components.logic.bodies.iter() {
             body.render(renderer, toggle, alpha);
+        }
 
-            // let old = body.old.hitbox();
-            // let new = body.new.hitbox();
+        for (_, hitbox) in components.render.hitboxes.iter() {
+            let width = lerp(hitbox.old.width, hitbox.new.width, alpha);
+            let height = lerp(hitbox.old.height, hitbox.new.height, alpha);
+            let centroid = Vec2::new(
+                lerp(hitbox.old.x, hitbox.new.x, alpha) + width * 0.5,
+                lerp(hitbox.old.y, hitbox.new.y, alpha) + height * 0.5,
+            );
 
-            // renderer.draw_rectangle_lines(
-            //     Morph::new(old.into(), new.into()),
-            //     Morph::one(Vec2::new(1.0, 0.0)),
-            //     Morph::new(body.old.centroid.into(), body.new.centroid.into()),
-            //     Morph::one(Color::BLUE),
-            // );
+            let rectangle = Rectangle::from(width, height, centroid);
+
+            renderer.draw_rectangle_lines(rectangle, Vec2::new(1.0, 0.0), centroid, Color::BLUE);
         }
     }
 

@@ -36,7 +36,7 @@ impl Forge {
             color: Color::GREEN,
         };
 
-        components.bodies.insert(
+        components.logic.bodies.insert(
             entity,
             Morph {
                 old: body,
@@ -44,7 +44,7 @@ impl Forge {
             },
         );
 
-        components.motions.insert(
+        components.logic.motions.insert(
             entity,
             Motion {
                 velocity: Vec2::ZERO,
@@ -74,7 +74,7 @@ impl Forge {
             color: Color::GREEN,
         };
 
-        components.bodies.insert(
+        components.logic.bodies.insert(
             entity,
             Morph {
                 old: body,
@@ -82,7 +82,7 @@ impl Forge {
             },
         );
 
-        components.motions.insert(
+        components.logic.motions.insert(
             entity,
             Motion {
                 velocity: Vec2::ZERO,

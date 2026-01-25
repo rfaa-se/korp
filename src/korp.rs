@@ -76,7 +76,7 @@ impl Core for Korp {
         self.cosmos.update(&self.commands);
 
         // make sure the camera tracks the player
-        if let Some(body) = self.cosmos.components.bodies.get(&self.player_id) {
+        if let Some(body) = self.cosmos.components.logic.bodies.get(&self.player_id) {
             self.camera_target.old = body.old.centroid.into();
             self.camera_target.new = body.new.centroid.into();
         } else {
@@ -88,28 +88,28 @@ impl Core for Korp {
 
     fn input(&mut self, input: &Input) {
         if input.down(&self.key_bindings.up) {
-            for (entity, _) in self.cosmos.components.motions.iter() {
+            for (entity, _) in self.cosmos.components.logic.motions.iter() {
                 self.actions
                     .push(Action::Command(Command::Accelerate(*entity)));
             }
         }
 
         if input.down(&self.key_bindings.down) {
-            for (entity, _) in self.cosmos.components.motions.iter() {
+            for (entity, _) in self.cosmos.components.logic.motions.iter() {
                 self.actions
                     .push(Action::Command(Command::Decelerate(*entity)));
             }
         }
 
         if input.down(&self.key_bindings.left) {
-            for (entity, _) in self.cosmos.components.motions.iter() {
+            for (entity, _) in self.cosmos.components.logic.motions.iter() {
                 self.actions
                     .push(Action::Command(Command::TurnLeft(*entity)));
             }
         }
 
         if input.down(&self.key_bindings.right) {
-            for (entity, _) in self.cosmos.components.motions.iter() {
+            for (entity, _) in self.cosmos.components.logic.motions.iter() {
                 self.actions
                     .push(Action::Command(Command::TurnRight(*entity)));
             }

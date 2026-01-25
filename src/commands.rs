@@ -29,8 +29,8 @@ impl Command {
 
 fn handle_accelerate(entity: &Entity, components: &mut Components) {
     let (Some(motion), Some(body)) = (
-        components.motions.get_mut(entity),
-        components.bodies.get(entity),
+        components.logic.motions.get_mut(entity),
+        components.logic.bodies.get(entity),
     ) else {
         return;
     };
@@ -40,8 +40,8 @@ fn handle_accelerate(entity: &Entity, components: &mut Components) {
 
 fn handle_decelerate(entity: &Entity, components: &mut Components) {
     let (Some(motion), Some(body)) = (
-        components.motions.get_mut(entity),
-        components.bodies.get(entity),
+        components.logic.motions.get_mut(entity),
+        components.logic.bodies.get(entity),
     ) else {
         return;
     };
@@ -50,7 +50,7 @@ fn handle_decelerate(entity: &Entity, components: &mut Components) {
 }
 
 fn handle_turn_left(entity: &Entity, components: &mut Components) {
-    let Some(motion) = components.motions.get_mut(entity) else {
+    let Some(motion) = components.logic.motions.get_mut(entity) else {
         return;
     };
 
@@ -58,7 +58,7 @@ fn handle_turn_left(entity: &Entity, components: &mut Components) {
 }
 
 fn handle_turn_right(entity: &Entity, components: &mut Components) {
-    let Some(motion) = components.motions.get_mut(entity) else {
+    let Some(motion) = components.logic.motions.get_mut(entity) else {
         return;
     };
 

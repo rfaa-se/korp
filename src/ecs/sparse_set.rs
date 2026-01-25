@@ -18,12 +18,18 @@ impl<T> SparseSet<T> {
     }
 
     pub fn insert(&mut self, entity: Entity, component: T) {
-        let index = entity.index as usize;
-        if index >= Self::TOMBSTONE {
+        let sparse_index = entity.index as usize;
+        if sparse_index >= Self::TOMBSTONE {
             return;
         }
 
-        self.sparse[index] = self.dense.len();
+        // replace component if entity already has it
+        if let Some(c) = self.get_mut(&entity) {
+            *c = component;
+            return;
+        }
+
+        self.sparse[sparse_index] = self.dense.len();
         self.dense.push(component);
         self.entities.push(entity);
     }
