@@ -6,6 +6,7 @@ use crate::ecs::{entities::Entity, sparse_set::SparseSet};
 pub mod traits;
 
 pub struct Components {
+    // TODO: add render bodies?
     pub bodies: SparseSet<Morph<Body>>,
     pub motions: SparseSet<Motion>,
 }

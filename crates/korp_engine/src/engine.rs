@@ -6,15 +6,15 @@ use std::{
 use korp_math::Vec2;
 
 use crate::input::Input;
-use crate::renderer::{Camera, Canvas, Renderer};
+use crate::renderer::{RawRenderer, Renderer};
 
 pub trait Core {
     fn update(&mut self);
     fn input(&mut self, input: &Input);
-    fn render(&mut self, canvas: &mut Canvas);
+    fn render(&mut self, renderer: &mut Renderer, alpha: f32);
     // fn init(&mut self);
     // fn exit(&mut self);
-    // fn resize(&mut self, width: u32, height: u32);
+    fn resize(&mut self, width: u32, height: u32);
 }
 
 pub struct Engine<T: Core> {
@@ -34,7 +34,7 @@ pub struct Engine<T: Core> {
 enum State {
     Uninitialized,
     Initialized {
-        renderer: Renderer,
+        renderer: RawRenderer,
         // window must be last, otherwise segfault at exit
         window: Arc<winit::window::Window>,
     },
@@ -88,7 +88,7 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
             let inner_size = window.inner_size();
             let (width, height) = (inner_size.width, inner_size.height);
             let renderer =
-                pollster::block_on(async { Renderer::new(window.clone(), width, height).await });
+                pollster::block_on(async { RawRenderer::new(window.clone(), width, height).await });
 
             self.state = State::Initialized { renderer, window };
         }
@@ -136,7 +136,11 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
                 }
             }
             winit::event::WindowEvent::Resized(winit::dpi::PhysicalSize { width, height }) => {
-                renderer.resize(width.max(1), height.max(1));
+                let (w, h) = (width.max(1), height.max(1));
+
+                renderer.resize(w, h);
+
+                self.core.resize(w, h);
             }
             winit::event::WindowEvent::RedrawRequested => {
                 let now = Instant::now();
@@ -153,19 +157,17 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
                     self.accumulator -= self.timestep;
                     self.tps += 1;
 
-                    renderer.prepare();
-
                     core.input(input);
                     core.update();
-                    core.render(&mut renderer.canvas);
 
                     input.update();
-                    renderer.update();
                 }
 
                 let alpha = self.accumulator.as_secs_f32() / self.timestep.as_secs_f32();
 
-                renderer.render(alpha);
+                let mut renderer = renderer.begin();
+                core.render(&mut renderer, alpha);
+
                 self.fps += 1;
 
                 if self.timer >= Self::ONE {

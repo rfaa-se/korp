@@ -1,14 +1,11 @@
 use crate::{
     commands::Command,
     ecs::{
-        components::{
-            Components,
-            traits::{Drawable, Hitboxable},
-        },
+        components::{Components, traits::Renderable},
         forge::Forge,
     },
 };
-use korp_engine::{color::Color, misc::Morph, renderer::Canvas, shapes::Rectangle};
+use korp_engine::{color::Color, renderer::Renderer, shapes::Rectangle};
 use korp_math::{Flint, Vec2};
 
 mod physics;
@@ -45,28 +42,29 @@ impl Observer {
     pub fn observe(
         &self,
         components: &Components,
-        canvas: &mut Canvas,
+        renderer: &mut Renderer,
         bounds: &Rectangle<Flint>,
         toggle: bool,
+        alpha: f32,
     ) {
-        self.cosmos(bounds, canvas);
+        self.cosmos(bounds, renderer);
 
         for (_, body) in components.bodies.iter() {
-            body.draw(canvas, toggle);
+            body.render(renderer, toggle, alpha);
 
-            let old = body.old.hitbox();
-            let new = body.new.hitbox();
+            // let old = body.old.hitbox();
+            // let new = body.new.hitbox();
 
-            canvas.draw_rectangle_lines(
-                Morph::new(old.into(), new.into()),
-                Morph::one(Vec2::new(1.0, 0.0)),
-                Morph::new(body.old.centroid.into(), body.new.centroid.into()),
-                Morph::one(Color::BLUE),
-            );
+            // renderer.draw_rectangle_lines(
+            //     Morph::new(old.into(), new.into()),
+            //     Morph::one(Vec2::new(1.0, 0.0)),
+            //     Morph::new(body.old.centroid.into(), body.new.centroid.into()),
+            //     Morph::one(Color::BLUE),
+            // );
         }
     }
 
-    fn cosmos(&self, dimensions: &Rectangle<Flint>, canvas: &mut Canvas) {
+    fn cosmos(&self, dimensions: &Rectangle<Flint>, renderer: &mut Renderer) {
         let dimensions = Rectangle {
             x: dimensions.x.to_f32(),
             y: dimensions.y.to_f32(),
@@ -83,12 +81,7 @@ impl Observer {
 
         let color = Color::RED;
 
-        canvas.draw_rectangle_lines(
-            Morph::one(dimensions),
-            Morph::one(rotation),
-            Morph::one(origin),
-            Morph::one(color),
-        );
+        renderer.draw_rectangle_lines(dimensions, rotation, origin, color);
     }
 }
 

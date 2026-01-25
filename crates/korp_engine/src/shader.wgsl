@@ -1,17 +1,12 @@
 struct Uniform {
     view_projection: mat4x4<f32>,
-    alpha: f32,
 }
 
 struct VertexInput {
-    @location(0) position_old: vec2<f32>,
-    @location(1) position_new: vec2<f32>,
-    @location(2) rotation_old: vec2<f32>,
-    @location(3) rotation_new: vec2<f32>,
-    @location(4) origin_old: vec2<f32>,
-    @location(5) origin_new: vec2<f32>,
-    @location(6) color_old: u32,
-    @location(7) color_new: u32,
+    @location(0) position: vec2<f32>,
+    @location(1) rotation: vec2<f32>,
+    @location(2) origin: vec2<f32>,
+    @location(3) color: u32,
 }
 
 struct VertexOutput {
@@ -26,22 +21,12 @@ var<uniform> uniform: Uniform;
 fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
 
-    let position = mix(in.position_old, in.position_new, uniform.alpha);
-    let rotation = normalize(mix(in.rotation_old, in.rotation_new, uniform.alpha));
-    let origin = mix(in.origin_old, in.origin_new, uniform.alpha);
-    let color = mix(unpack(in.color_old), unpack(in.color_new), uniform.alpha);
-
-    let offset = position - origin;
-    // let rotated = rotate(offset, vec2(-rotation.y, rotation.x));
-    // let rotation2 = vec2(-rotation.y, rotation.x);
-    let rotated = rotate(offset, rotation);
-    // let rotated = offset;
-    // let rotated = rotate(offset, vec2(rotation.x, -1.0 * rotation.y));
-    // let rotated2 = vec2(rotated.x, -1 * rotated.y);
-    let world_position = rotated + origin;
+    let offset = in.position - in.origin;
+    let rotated = rotate(offset, in.rotation);
+    let world_position = rotated + in.origin;
 
     out.clip_position = uniform.view_projection *  vec4(world_position, 0.0, 1.0);
-    out.color = color;
+    out.color = unpack(in.color);
 
     return out;
 }

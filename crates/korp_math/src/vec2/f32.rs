@@ -30,6 +30,17 @@ impl Vec2<f32> {
     pub fn dot(&self, v: &Vec2<f32>) -> f32 {
         self.x * v.x + self.y * v.y
     }
+
+    pub fn angle(&self) -> f32 {
+        self.y.atan2(self.x)
+    }
+
+    pub fn from_angle(radians: f32) -> Self {
+        Self {
+            x: radians.cos(),
+            y: radians.sin(),
+        }
+    }
 }
 
 impl From<Vec2<Flint>> for Vec2<f32> {
@@ -37,6 +48,7 @@ impl From<Vec2<Flint>> for Vec2<f32> {
         Vec2::new(value.x.into(), value.y.into())
     }
 }
+
 impl Add for Vec2<f32> {
     type Output = Vec2<f32>;
 

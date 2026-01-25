@@ -3,10 +3,10 @@ use korp_engine::{
     color::Color,
     input::{Input, KeyCode},
     misc::Morph,
-    renderer::{Camera, Canvas},
+    renderer::{Camera, Renderer},
     shapes::Rectangle,
 };
-use korp_math::{Flint, Vec2};
+use korp_math::{Flint, Vec2, lerp};
 
 use crate::{
     commands::{Command, Spawn},
@@ -84,8 +84,6 @@ impl Core for Korp {
             // TODO: listen to when player dies and set the camera target then, once
             self.camera_target.old = self.camera_target.new;
         }
-
-        self.camera.set_position(self.camera_target);
     }
 
     fn input(&mut self, input: &Input) {
@@ -142,24 +140,30 @@ impl Core for Korp {
         }
     }
 
-    fn render(&mut self, canvas: &mut Canvas) {
+    fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
+        self.camera.set_position(Vec2::new(
+            lerp(self.camera_target.old.x, self.camera_target.new.x, alpha),
+            lerp(self.camera_target.old.y, self.camera_target.new.y, alpha),
+        ));
+
         {
-            let scope = canvas.begin(&self.camera);
-            self.cosmos.render(scope.canvas, self.toggle);
+            // render cosmos using the camera
+            let scope = renderer.begin(&self.camera);
+
+            self.cosmos.render(scope.renderer, self.toggle, alpha);
         }
 
-        // draw ui
-        canvas.draw_rectangle_lines(
-            Morph::one(Rectangle {
-                x: 0.0,
-                y: 400.0,
-                width: 200.0,
-                height: 200.0,
-            }),
-            Morph::one(Vec2::new(0.0, 0.0)),
-            Morph::one(Vec2::new(0.0, 0.0)),
-            Morph::one(Color::GREEN),
+        // render ui
+        renderer.draw_rectangle_lines(
+            Rectangle::from(800.0, 120.0, Vec2::new(400.0, 540.0)),
+            Vec2::new(1.0, 0.0),
+            Vec2::new(400.0, 540.0),
+            Color::GREEN,
         );
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        self.camera.resize(width as f32, height as f32);
     }
 }
 

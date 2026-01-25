@@ -1,5 +1,5 @@
-mod drawable;
 mod hitboxable;
+mod renderable;
 
-pub use drawable::*;
 pub use hitboxable::*;
+pub use renderable::*;

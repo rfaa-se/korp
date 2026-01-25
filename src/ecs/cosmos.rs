@@ -1,4 +1,4 @@
-use korp_engine::{renderer::Canvas, shapes::Rectangle};
+use korp_engine::{renderer::Renderer, shapes::Rectangle};
 use korp_math::Flint;
 
 use crate::{
@@ -27,8 +27,8 @@ impl Cosmos {
             observer: Observer::new(),
             bounds: Rectangle {
                 x: Flint::new(50, 0),
-                y: Flint::new(30, 0),
-                width: Flint::new(670, 0),
+                y: Flint::new(40, 0),
+                width: Flint::new(700, 0),
                 height: Flint::new(400, 0),
             },
         }
@@ -43,8 +43,8 @@ impl Cosmos {
         );
     }
 
-    pub fn render(&self, canvas: &mut Canvas, toggle: bool) {
+    pub fn render(&self, renderer: &mut Renderer, toggle: bool, alpha: f32) {
         self.observer
-            .observe(&self.components, canvas, &self.bounds, toggle);
+            .observe(&self.components, renderer, &self.bounds, toggle, alpha);
     }
 }
