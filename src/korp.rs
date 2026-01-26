@@ -141,7 +141,7 @@ impl Core for Korp {
     }
 
     fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
-        self.camera.set_position(Vec2::new(
+        self.camera.reposition(Vec2::new(
             lerp(self.camera_target.old.x, self.camera_target.new.x, alpha),
             lerp(self.camera_target.old.y, self.camera_target.new.y, alpha),
         ));

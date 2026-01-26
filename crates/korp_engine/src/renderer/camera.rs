@@ -15,7 +15,7 @@ impl Camera {
         }
     }
 
-    pub fn set_position(&mut self, position: Vec2<f32>) {
+    pub fn reposition(&mut self, position: Vec2<f32>) {
         self.position = position;
     }
 
@@ -34,24 +34,6 @@ impl Camera {
 
         ortho(left, right, bottom, top, near, far)
     }
-
-    // pub(crate) fn view_projection(&self, alpha: f32) -> [[f32; 4]; 4] {
-    //     // ensure smooth camera movement by lerping between old and new target
-    //     let lerp = |a, b| a + (b - a) * alpha;
-    //     let target = Vec2::new(
-    //         lerp(self.position.old.x, self.position.new.x),
-    //         lerp(self.position.old.y, self.position.new.y),
-    //     );
-
-    //     let left = target.x - self.width * 0.5;
-    //     let right = target.x + self.width * 0.5;
-    //     let top = target.y + self.height * 0.5;
-    //     let bottom = target.y - self.height * 0.5;
-    //     let near = 0.0;
-    //     let far = 1.0;
-
-    //     ortho(left, right, bottom, top, near, far)
-    // }
 }
 
 fn ortho(left: f32, right: f32, top: f32, bottom: f32, near: f32, far: f32) -> [[f32; 4]; 4] {

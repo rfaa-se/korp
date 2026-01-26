@@ -7,7 +7,7 @@ pub trait Hitboxable {
     fn hitbox(&self) -> Rectangle<Flint>;
 }
 
-impl Hitboxable for Body {
+impl Hitboxable for Body<Flint> {
     fn hitbox(&self) -> Rectangle<Flint> {
         match self.shape {
             Shape::Triangle(triangle) => {
@@ -52,7 +52,7 @@ impl Hitboxable for Body {
     }
 }
 
-impl Hitboxable for Morph<Body> {
+impl Hitboxable for Morph<Body<Flint>> {
     fn hitbox(&self) -> Rectangle<Flint> {
         match (self.old.shape, self.new.shape) {
             (Shape::Triangle(_), Shape::Triangle(_)) => {

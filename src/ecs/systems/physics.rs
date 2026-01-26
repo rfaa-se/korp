@@ -1,9 +1,8 @@
-use korp_engine::{misc::Morph, shapes::Rectangle};
+use korp_engine::{misc::Morph, shapes::Rectangle as EngineRectangle};
 use korp_math::{Flint, Vec2};
 
 use crate::ecs::{
-    components::{Components, traits::Hitboxable},
-    entities::Entity,
+    components::{Body, Components, Rectangle, Shape, Triangle, traits::Hitboxable},
     forge::Forge,
 };
 
@@ -21,19 +20,52 @@ pub fn hitbox(components: &mut Components) {
     }
 }
 
+pub fn morph_body_render(components: &mut Components) {
+    for (_, body) in components.render.bodies.iter_mut() {
+        body.old = body.new;
+    }
+}
+
 pub fn morph_hitbox_render(components: &mut Components) {
     for (_, hitbox) in components.render.hitboxes.iter_mut() {
         hitbox.old = hitbox.new;
     }
 }
 
+pub fn body_render(components: &mut Components) {
+    for (&entity, lb) in components.logic.bodies.iter() {
+        let body = Body {
+            centroid: lb.new.centroid.into(),
+            rotation: lb.new.rotation.into(),
+            shape: match lb.new.shape {
+                Shape::Triangle(triangle) => Shape::Triangle(Triangle {
+                    top: triangle.top.into(),
+                    left: triangle.left.into(),
+                    right: triangle.right.into(),
+                }),
+                Shape::Rectangle(rectangle) => Shape::Rectangle(Rectangle {
+                    width: rectangle.width.into(),
+                    height: rectangle.height.into(),
+                }),
+            },
+            color: lb.new.color,
+        };
+
+        if let Some(rb) = components.render.bodies.get_mut(&entity) {
+            rb.new = body;
+        } else {
+            components.render.bodies.insert(entity, Morph::one(body));
+        }
+    }
+}
+
 pub fn hitbox_render(components: &mut Components) {
     for (&entity, lhb) in components.logic.hitboxes.iter() {
-        let rectangle = Rectangle {
-            x: lhb.x.to_f32(),
-            y: lhb.y.to_f32(),
-            width: lhb.width.to_f32(),
-            height: lhb.height.to_f32(),
+        let rectangle = EngineRectangle {
+            x: lhb.x.into(),
+            y: lhb.y.into(),
+            width: lhb.width.into(),
+            height: lhb.height.into(),
         };
 
         if let Some(rhb) = components.render.hitboxes.get_mut(&entity) {
@@ -105,7 +137,11 @@ pub fn motion(components: &mut Components) {
     }
 }
 
-pub fn out_of_bounds(bounds: &Rectangle<Flint>, forge: &mut Forge, components: &mut Components) {
+pub fn out_of_bounds(
+    bounds: &EngineRectangle<Flint>,
+    forge: &mut Forge,
+    components: &mut Components,
+) {
     let mut dead = Vec::new();
 
     for (&entity, hitbox) in components.logic.hitboxes.iter() {

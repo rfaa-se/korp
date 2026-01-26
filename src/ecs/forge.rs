@@ -7,23 +7,23 @@ use crate::ecs::{
 };
 
 pub struct Forge {
-    entity_factory: EntityFactory,
+    factory: EntityFactory,
 }
 
 impl Forge {
     pub fn new() -> Self {
         Self {
-            entity_factory: EntityFactory::new(),
+            factory: EntityFactory::new(),
         }
     }
 
     pub fn destroy(&mut self, entity: Entity, components: &mut Components) {
-        self.entity_factory.destroy(entity);
+        self.factory.destroy(entity);
         components.destroy(entity);
     }
 
     pub fn triangle(&mut self, centroid: Vec2<Flint>, components: &mut Components) -> Entity {
-        let entity = self.entity_factory.create();
+        let entity = self.factory.create();
 
         let body = Body {
             centroid,
@@ -36,13 +36,7 @@ impl Forge {
             color: Color::GREEN,
         };
 
-        components.logic.bodies.insert(
-            entity,
-            Morph {
-                old: body,
-                new: body,
-            },
-        );
+        components.logic.bodies.insert(entity, Morph::one(body));
 
         components.logic.motions.insert(
             entity,
@@ -62,7 +56,7 @@ impl Forge {
     }
 
     pub fn rectangle(&mut self, centroid: Vec2<Flint>, components: &mut Components) -> Entity {
-        let entity = self.entity_factory.create();
+        let entity = self.factory.create();
 
         let body = Body {
             centroid,
@@ -74,13 +68,7 @@ impl Forge {
             color: Color::GREEN,
         };
 
-        components.logic.bodies.insert(
-            entity,
-            Morph {
-                old: body,
-                new: body,
-            },
-        );
+        components.logic.bodies.insert(entity, Morph::one(body));
 
         components.logic.motions.insert(
             entity,

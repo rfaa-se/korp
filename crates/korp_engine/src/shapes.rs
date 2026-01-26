@@ -69,10 +69,10 @@ impl Rectangle<Flint> {
 impl Into<Rectangle<f32>> for Rectangle<Flint> {
     fn into(self) -> Rectangle<f32> {
         Rectangle {
-            x: self.x.to_f32(),
-            y: self.y.to_f32(),
-            width: self.width.to_f32(),
-            height: self.height.to_f32(),
+            x: self.x.into(),
+            y: self.y.into(),
+            width: self.width.into(),
+            height: self.height.into(),
         }
     }
 }

@@ -451,7 +451,7 @@ impl RawRenderer {
         let buffer = Self::create_buffer(&mut device, vertices_max);
 
         let mut camera = Camera::new(width as f32, height as f32);
-        camera.set_position(Vec2::new(width as f32 / 2.0, height as f32 / 2.0));
+        camera.reposition(Vec2::new(width as f32 / 2.0, height as f32 / 2.0));
 
         let view_projection_default = camera.view_projection();
 
@@ -485,7 +485,7 @@ impl RawRenderer {
             .configure(&self.device, &self.surface_configuration);
         self.camera.resize(width as f32, height as f32);
         self.camera
-            .set_position(Vec2::new(width as f32 / 2.0, height as f32 / 2.0));
+            .reposition(Vec2::new(width as f32 / 2.0, height as f32 / 2.0));
         self.view_projection_default = self.camera.view_projection();
     }
 

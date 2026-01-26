@@ -1,4 +1,4 @@
-use korp_engine::{color::Color, misc::Morph, shapes::Rectangle as ERectangle};
+use korp_engine::{color::Color, misc::Morph, shapes::Rectangle as EngineRectangle};
 use korp_math::{Flint, Vec2};
 
 use crate::ecs::{entities::Entity, sparse_set::SparseSet};
@@ -6,13 +6,14 @@ use crate::ecs::{entities::Entity, sparse_set::SparseSet};
 pub mod traits;
 
 pub struct Logic {
-    pub bodies: SparseSet<Morph<Body>>,
-    pub hitboxes: SparseSet<ERectangle<Flint>>,
+    pub bodies: SparseSet<Morph<Body<Flint>>>,
+    pub hitboxes: SparseSet<EngineRectangle<Flint>>,
     pub motions: SparseSet<Motion>,
 }
 
 pub struct Render {
-    pub hitboxes: SparseSet<Morph<ERectangle<f32>>>,
+    pub bodies: SparseSet<Morph<Body<f32>>>,
+    pub hitboxes: SparseSet<Morph<EngineRectangle<f32>>>,
 }
 
 pub struct Components {
@@ -29,6 +30,7 @@ impl Components {
                 motions: SparseSet::new(u16::MAX as usize),
             },
             render: Render {
+                bodies: SparseSet::new(u16::MAX as usize),
                 hitboxes: SparseSet::new(u16::MAX as usize),
             },
         }
@@ -39,6 +41,7 @@ impl Components {
         self.logic.hitboxes.remove(entity);
         self.logic.motions.remove(entity);
 
+        self.render.bodies.remove(entity);
         self.render.hitboxes.remove(entity);
     }
 }
@@ -55,28 +58,28 @@ pub struct Motion {
 }
 
 #[derive(Copy, Clone)]
-pub struct Body {
-    pub centroid: Vec2<Flint>,
-    pub rotation: Vec2<Flint>,
-    pub shape: Shape,
+pub struct Body<T> {
+    pub centroid: Vec2<T>,
+    pub rotation: Vec2<T>,
+    pub shape: Shape<T>,
     pub color: Color,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Shape {
-    Triangle(Triangle),
-    Rectangle(Rectangle),
+pub enum Shape<T> {
+    Triangle(Triangle<T>),
+    Rectangle(Rectangle<T>),
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Triangle {
-    pub top: Vec2<Flint>,
-    pub left: Vec2<Flint>,
-    pub right: Vec2<Flint>,
+pub struct Triangle<T> {
+    pub top: Vec2<T>,
+    pub left: Vec2<T>,
+    pub right: Vec2<T>,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Rectangle {
-    pub width: Flint,
-    pub height: Flint,
+pub struct Rectangle<T> {
+    pub width: T,
+    pub height: T,
 }
