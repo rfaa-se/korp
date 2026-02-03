@@ -10,7 +10,7 @@ use korp_math::{Flint, Vec2, lerp};
 
 use crate::{
     commands::{Command, Spawn},
-    ecs::{cosmos::Cosmos, entities::Entity},
+    ecs::{components::traits::Renderable, cosmos::Cosmos, entities::Entity},
 };
 
 pub struct Korp {
@@ -56,6 +56,12 @@ impl Korp {
             },
         }
     }
+}
+
+pub struct RenderData {
+    bodies: Vec<Morph<crate::ecs::components::Body<f32>>>,
+    hitboxes: Vec<Morph<Rectangle<f32>>>,
+    camera: Camera,
 }
 
 impl Core for Korp {
@@ -140,32 +146,107 @@ impl Core for Korp {
         }
     }
 
-    fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
-        self.camera.reposition(Vec2::new(
-            lerp(self.camera_target.old.x, self.camera_target.new.x, alpha),
-            lerp(self.camera_target.old.y, self.camera_target.new.y, alpha),
-        ));
+    // fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
+    //     self.camera.reposition(Vec2::new(
+    //         lerp(self.camera_target.old.x, self.camera_target.new.x, alpha),
+    //         lerp(self.camera_target.old.y, self.camera_target.new.y, alpha),
+    //     ));
 
-        {
-            // render cosmos using the camera
-            let scope = renderer.begin(&self.camera);
+    //     {
+    //         // render cosmos using the camera
+    //         let scope = renderer.begin(&self.camera);
 
-            self.cosmos.render(scope.renderer, self.toggle, alpha);
-        }
+    //         self.cosmos.render(scope.renderer, self.toggle, alpha);
+    //     }
 
-        // render ui
-        renderer.draw_rectangle_lines(
-            Rectangle::from(800.0, 120.0, Vec2::new(400.0, 540.0)),
-            Vec2::new(1.0, 0.0),
-            Vec2::new(400.0, 540.0),
-            Color::GREEN,
-        );
-    }
+    //     // render ui
+    //     renderer.draw_rectangle_lines(
+    //         Rectangle::from(800.0, 120.0, Vec2::new(400.0, 540.0)),
+    //         Vec2::new(1.0, 0.0),
+    //         Vec2::new(400.0, 540.0),
+    //         Color::GREEN,
+    //     );
+    // }
 
     fn resize(&mut self, width: u32, height: u32) {
         self.camera.resize(width as f32, height as f32);
     }
+
+    type RenderData = RenderData;
+
+    fn render(data: &mut Self::RenderData, renderer: &mut Renderer, alpha: f32) {
+        data.camera.reposition(position);
+    }
+
+    fn work(&mut self) -> Self::RenderData {
+        RenderData {
+            bodies: self
+                .cosmos
+                .components
+                .render
+                .bodies
+                .iter()
+                .map(|(_, body)| body.clone())
+                .collect(),
+            hitboxes: self
+                .cosmos
+                .components
+                .render
+                .hitboxes
+                .iter()
+                .map(|(_, x)| x.clone())
+                .collect(),
+            camera: todo!(),
+        }
+    }
+
+    // // type RenderConfigurator = Fn(&RenderData, &mut Renderer, f32);
+    // type RenderConfigurator = fn(&RenderData, &mut Renderer, f32);
+
+    // fn prepare(&self) -> Self::RenderConfigurator {
+    //     move |data, renderer, alpha| {
+    //         // let scope = renderer.begin(&self.camera);
+    //         for body in data.bodies.iter() {
+    //             // body.render(scope.renderer, false, alpha);
+    //         }
+
+    //         for hitbox in data.hitboxes.iter() {}
+    //     }
+    // }
+
+    // type RenderData = RenderData;
+
+    // fn prepare(&self, data: &mut RenderData) {
+    //     todo!()
+    // }
+
+    // fn render(&self, data: &RenderData, renderer: &mut Renderer, alpha: f32) {
+    //     todo!()
+    // }
 }
+
+// impl Korp {
+//     fn render(&self) -> RenderData {
+//         RenderData {
+//             bodies: self
+//                 .cosmos
+//                 .components
+//                 .render
+//                 .bodies
+//                 .iter()
+//                 .map(|(_, body)| body.clone())
+//                 .collect(),
+//             hitboxes: self
+//                 .cosmos
+//                 .components
+//                 .render
+//                 .hitboxes
+//                 .iter()
+//                 .map(|(_, x)| x.clone())
+//                 .collect(),
+//         }
+//     }
+// }
 
 impl KeyBindings {
     fn new() -> Self {
@@ -178,5 +259,9 @@ impl KeyBindings {
             triangle: KeyCode::Digit1,
             rectangle: KeyCode::Digit2,
         }
+    }
+
+    fn r(&self) -> impl FnMut(&RenderData, &mut Renderer) {
+        move |data, renderer| {}
     }
 }

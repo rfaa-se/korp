@@ -1,5 +1,8 @@
 use std::{
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -9,12 +12,22 @@ use crate::input::Input;
 use crate::renderer::{RawRenderer, Renderer};
 
 pub trait Core {
+    type RenderData: Send + Sync;
+    // type RenderConfigurator: Fn(&Self::RenderData, &mut Renderer, f32) + Send + Sync;
+    // type Job: FnMut(Arc<Self::RenderData>) + Send + Sync;
+
     fn update(&mut self);
     fn input(&mut self, input: &Input);
-    fn render(&mut self, renderer: &mut Renderer, alpha: f32);
+    // fn prepare(&self, data: &mut Self::RenderData);
+    // fn prepare(&self) -> Self::RenderConfigurator;
+    // fn render(&mut self, renderer: &mut Renderer, alpha: f32);
     // fn init(&mut self);
     // fn exit(&mut self);
     fn resize(&mut self, width: u32, height: u32);
+    // fn data(&self) -> Self::RenderData;
+    // fn r(&self) -> Self::Job;
+    fn render(data: &mut Self::RenderData, renderer: &mut Renderer, alpha: f32);
+    fn work(&mut self) -> Self::RenderData;
 }
 
 pub struct Engine<T: Core> {
@@ -29,6 +42,8 @@ pub struct Engine<T: Core> {
     fps: u32,
     tps: u32,
     title: String,
+    // buffer: [Arc<T::RenderData>; 2],
+    // active: Arc<AtomicBool>,
 }
 
 enum State {
@@ -56,6 +71,8 @@ impl<T: Core> Engine<T> {
             fps: 0,
             tps: 0,
             title: title.to_owned(),
+            // buffer: [Arc::new(buffer[0]), Arc::new(buffer[1])],
+            // active: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -147,6 +164,7 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
                 let delta = now - self.last_render;
                 let core = &mut self.core;
                 let input = &mut self.input;
+                // let ren = core.prepare();
 
                 self.last_render = now;
                 self.elapsed += delta;
@@ -161,12 +179,35 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
                     core.update();
 
                     input.update();
+
+                    // let current = self.active.load(Ordering::Relaxed);
+                    // let idx = if current { 0 } else { 1 };
+                    // let data = Arc::get_mut(&mut self.buffer[idx]).unwrap();
+                    // core.prepare(data);
+                    // self.active.store(!current, Ordering::Release);
                 }
 
                 let alpha = self.accumulator.as_secs_f32() / self.timestep.as_secs_f32();
 
                 let mut renderer = renderer.begin();
-                core.render(&mut renderer, alpha);
+                // ren(todo!(), &mut renderer, alpha);
+                // core.render(&mut renderer, alpha);
+                // let active = self.active.clone();
+                // let mut a = self.buffer[0].clone();
+                // let mut b = self.buffer[1].clone();
+                // let mut buf = [a, b];
+                let mut data = core.work();
+                std::thread::spawn(move || {
+                    T::render(&mut data, &mut renderer, alpha);
+                });
+
+                // std::thread::spawn(move || {
+                //     loop {
+                //         let idx = if active.load(Ordering::Acquire) { 1 } else { 0 };
+                //         let abc = buf[idx];
+                //         // T::render(&self.core, &*d, &mut renderer, alpha);
+                //     }
+                // });
 
                 self.fps += 1;
 

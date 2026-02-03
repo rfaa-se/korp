@@ -9,7 +9,30 @@ use crate::{
 };
 
 pub struct RawRenderer {
+    // surface: wgpu::Surface<'static>,
+    // surface_configuration: wgpu::SurfaceConfiguration,
+    // device: wgpu::Device,
+    tx: std::sync::mpsc::SyncSender<RenderAction>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+pub struct Renderer<'a> {
+    raw: &'a mut RawRenderer,
+}
+
+pub struct RendererScope<'a, 'b>
+where
+    'b: 'a,
+{
+    pub renderer: &'a mut Renderer<'b>,
+    pub camera: &'a Camera,
+}
+
+struct RenderThread {
+    // surface: Option<wgpu::Surface<'static>>,
     surface: wgpu::Surface<'static>,
+    rx: std::sync::mpsc::Receiver<RenderAction>,
+    // surface_configuration: std::sync::Arc<std::sync::Mutex<wgpu::SurfaceConfiguration>>,
     surface_configuration: wgpu::SurfaceConfiguration,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -28,16 +51,51 @@ pub struct RawRenderer {
     view_projections: Vec<[[f32; 4]; 4]>,
 }
 
-pub struct Renderer<'a> {
-    raw: &'a mut RawRenderer,
+struct Frame {
+    actions: Vec<RenderAction>,
 }
 
-pub struct RendererScope<'a, 'b>
-where
-    'b: 'a,
-{
-    pub renderer: &'a mut Renderer<'b>,
-    pub camera: &'a Camera,
+enum RenderAction {
+    Command(RenderCommand),
+    Resize { width: u32, height: u32 },
+    Die,
+    Begin,
+    End,
+    BeginScope { view_projection: [[f32; 4]; 4] },
+    EndScope,
+}
+
+enum RenderCommand {
+    DrawLine {
+        line: Line<f32>,
+        rotation: Vec2<f32>,
+        origin: Vec2<f32>,
+        color: Color,
+    },
+    DrawTriangleFilled {
+        triangle: Triangle<f32>,
+        rotation: Vec2<f32>,
+        origin: Vec2<f32>,
+        color: Color,
+    },
+    DrawTriangleLines {
+        triangle: Triangle<f32>,
+        rotation: Vec2<f32>,
+        origin: Vec2<f32>,
+        color: Color,
+    },
+    DrawRectangleFilled {
+        rectangle: Rectangle<f32>,
+        rotation: Vec2<f32>,
+        origin: Vec2<f32>,
+        color: Color,
+    },
+    DrawRectangleLines {
+        rectangle: Rectangle<f32>,
+        rotation: Vec2<f32>,
+        origin: Vec2<f32>,
+        color: Color,
+    },
 }
 
 struct RenderBatch {
@@ -135,61 +193,72 @@ impl Uniform {
 
 impl Drop for RendererScope<'_, '_> {
     fn drop(&mut self) {
-        let idx = self.renderer.raw.batches.len() - 1;
-        let len = self.renderer.raw.vertices.len() as u32;
+        // let idx = self.renderer.raw.batches.len() - 1;
+        // let len = self.renderer.raw.vertices.len() as u32;
 
-        // end the current batch
-        self.renderer.raw.batches[idx].end = len;
+        // // end the current batch
+        // self.renderer.raw.batches[idx].end = len;
 
-        // restore the previous batch
-        self.renderer.raw.batches.push(RenderBatch {
-            start: len,
-            end: 0,
-            view_projection_idx: self.renderer.raw.batches[idx - 1].view_projection_idx,
-        });
+        // // restore the previous batch
+        // self.renderer.raw.batches.push(RenderBatch {
+        //     start: len,
+        //     end: 0,
+        //     view_projection_idx: self.renderer.raw.batches[idx - 1].view_projection_idx,
+        // });
+        self.renderer.raw.tx.send(RenderAction::EndScope);
     }
 }
 
 impl Drop for Renderer<'_> {
     fn drop(&mut self) {
-        let idx = self.raw.batches.len() - 1;
-        let len = self.raw.vertices.len() as u32;
+        // let idx = self.raw.batches.len() - 1;
+        // let len = self.raw.vertices.len() as u32;
 
-        // end the current batch
-        self.raw.batches[idx].end = len;
+        // // end the current batch
+        // self.raw.batches[idx].end = len;
 
-        // remove empty batches
-        self.raw.batches.retain(|x| x.start != x.end);
+        // // remove empty batches
+        // self.raw.batches.retain(|x| x.start != x.end);
 
-        self.raw.render();
+        // self.raw.render();
+        // let surface_texture = self
+        //     .surface
+        //     .get_current_texture()
+        //     .expect("could not get current texture");
+
+        self.raw.tx.send(RenderAction::End);
     }
 }
 
 impl<'a, 'b> Renderer<'b> {
     pub fn begin(&'a mut self, camera: &'a Camera) -> RendererScope<'a, 'b> {
-        let idx = self.raw.batches.len() - 1;
-        let len = self.raw.vertices.len() as u32;
+        // let idx = self.raw.batches.len() - 1;
+        // let len = self.raw.vertices.len() as u32;
 
-        // end the current batch
-        self.raw.batches[idx].end = len;
+        // // end the current batch
+        // self.raw.batches[idx].end = len;
 
-        // try to reuse view projection if it exists
-        let view_projection = camera.view_projection();
-        let vp_idx = self
-            .raw
-            .view_projections
-            .iter()
-            .position(|x| *x == view_projection)
-            .unwrap_or_else(|| {
-                self.raw.view_projections.push(view_projection);
-                self.raw.view_projections.len() - 1
-            });
+        // // try to reuse view projection if it exists
+        // let view_projection = camera.view_projection();
+        // let vp_idx = self
+        //     .raw
+        //     .view_projections
+        //     .iter()
+        //     .position(|x| *x == view_projection)
+        //     .unwrap_or_else(|| {
+        //         self.raw.view_projections.push(view_projection);
+        //         self.raw.view_projections.len() - 1
+        //     });
 
-        // create new batch
-        self.raw.batches.push(RenderBatch {
-            start: len,
-            end: 0,
-            view_projection_idx: vp_idx as u32,
+        // // create new batch
+        // self.raw.batches.push(RenderBatch {
+        //     start: len,
+        //     end: 0,
+        //     view_projection_idx: vp_idx as u32,
+        // });
+
+        self.raw.tx.send(RenderAction::BeginScope {
+            view_projection: camera.view_projection(),
         });
 
         RendererScope {
@@ -205,44 +274,51 @@ impl<'a, 'b> Renderer<'b> {
         origin: Vec2<f32>,
         color: Color,
     ) {
-        // TODO: when multithreaded, move this into a command to send?
+        self.raw
+            .tx
+            .send(RenderAction::Command(RenderCommand::DrawLine {
+                line,
+                rotation,
+                origin,
+                color,
+            }));
 
-        let corners = |a: Vec2<f32>, b: Vec2<f32>| {
-            let dir = b - a;
-            let norm = dir.perp().normalized() * 0.5;
-            (a + norm, b + norm, b - norm, a - norm)
-        };
+        // let corners = |a: Vec2<f32>, b: Vec2<f32>| {
+        //     let dir = b - a;
+        //     let norm = dir.perp().normalized() * 0.5;
+        //     (a + norm, b + norm, b - norm, a - norm)
+        // };
 
-        let (c0, c1, c2, c3) = corners(line.start, line.end);
+        // let (c0, c1, c2, c3) = corners(line.start, line.end);
 
-        let v0 = Vertex {
-            position: c0.into(),
-            rotation: rotation.into(),
-            origin: origin.into(),
-            color: color.into(),
-        };
+        // let v0 = Vertex {
+        //     position: c0.into(),
+        //     rotation: rotation.into(),
+        //     origin: origin.into(),
+        //     color: color.into(),
+        // };
 
-        let v1 = Vertex {
-            position: c1.into(),
-            ..v0
-        };
+        // let v1 = Vertex {
+        //     position: c1.into(),
+        //     ..v0
+        // };
 
-        let v2 = Vertex {
-            position: c2.into(),
-            ..v0
-        };
+        // let v2 = Vertex {
+        //     position: c2.into(),
+        //     ..v0
+        // };
 
-        let v3 = Vertex {
-            position: c3.into(),
-            ..v0
-        };
+        // let v3 = Vertex {
+        //     position: c3.into(),
+        //     ..v0
+        // };
 
-        self.raw.vertices.push(v0);
-        self.raw.vertices.push(v1);
-        self.raw.vertices.push(v2);
-        self.raw.vertices.push(v2);
-        self.raw.vertices.push(v3);
-        self.raw.vertices.push(v0);
+        // self.raw.vertices.push(v0);
+        // self.raw.vertices.push(v1);
+        // self.raw.vertices.push(v2);
+        // self.raw.vertices.push(v2);
+        // self.raw.vertices.push(v3);
+        // self.raw.vertices.push(v0);
     }
 
     pub fn draw_triangle_filled(
@@ -252,26 +328,34 @@ impl<'a, 'b> Renderer<'b> {
         origin: Vec2<f32>,
         color: Color,
     ) {
-        let top = Vertex {
-            position: triangle.top.into(),
-            rotation: rotation.into(),
-            origin: origin.into(),
-            color: color.into(),
-        };
+        self.raw
+            .tx
+            .send(RenderAction::Command(RenderCommand::DrawTriangleFilled {
+                triangle,
+                rotation,
+                origin,
+                color,
+            }));
+        // let top = Vertex {
+        //     position: triangle.top.into(),
+        //     rotation: rotation.into(),
+        //     origin: origin.into(),
+        //     color: color.into(),
+        // };
 
-        let left = Vertex {
-            position: triangle.left.into(),
-            ..top
-        };
+        // let left = Vertex {
+        //     position: triangle.left.into(),
+        //     ..top
+        // };
 
-        let right = Vertex {
-            position: triangle.right.into(),
-            ..top
-        };
+        // let right = Vertex {
+        //     position: triangle.right.into(),
+        //     ..top
+        // };
 
-        self.raw.vertices.push(top);
-        self.raw.vertices.push(left);
-        self.raw.vertices.push(right);
+        // self.raw.vertices.push(top);
+        // self.raw.vertices.push(left);
+        // self.raw.vertices.push(right);
     }
 
     pub fn draw_triangle_lines(
@@ -281,20 +365,28 @@ impl<'a, 'b> Renderer<'b> {
         origin: Vec2<f32>,
         color: Color,
     ) {
-        let corners = [triangle.top, triangle.left, triangle.right];
-
-        // TOOD: the lines don't match up 100% with the filled version
-        for i in 0..corners.len() {
-            self.draw_line(
-                Line {
-                    start: corners[i],
-                    end: corners[(i + 1) % 3],
-                },
+        self.raw
+            .tx
+            .send(RenderAction::Command(RenderCommand::DrawTriangleLines {
+                triangle,
                 rotation,
                 origin,
                 color,
-            );
-        }
+            }));
+        // let corners = [triangle.top, triangle.left, triangle.right];
+
+        // // TOOD: the lines don't match up 100% with the filled version
+        // for i in 0..corners.len() {
+        //     self.draw_line(
+        //         Line {
+        //             start: corners[i],
+        //             end: corners[(i + 1) % 3],
+        //         },
+        //         rotation,
+        //         origin,
+        //         color,
+        //     );
+        // }
     }
 
     pub fn draw_rectangle_filled(
@@ -304,37 +396,45 @@ impl<'a, 'b> Renderer<'b> {
         origin: Vec2<f32>,
         color: Color,
     ) {
-        let v0 = Vertex {
-            position: [rectangle.x, rectangle.y],
-            rotation: rotation.into(),
-            origin: origin.into(),
-            color: color.into(),
-        };
+        self.raw
+            .tx
+            .send(RenderAction::Command(RenderCommand::DrawRectangleFilled {
+                rectangle,
+                rotation,
+                origin,
+                color,
+            }));
+        // let v0 = Vertex {
+        //     position: [rectangle.x, rectangle.y],
+        //     rotation: rotation.into(),
+        //     origin: origin.into(),
+        //     color: color.into(),
+        // };
 
-        let v1 = Vertex {
-            position: [rectangle.x + rectangle.width, rectangle.y],
-            ..v0
-        };
+        // let v1 = Vertex {
+        //     position: [rectangle.x + rectangle.width, rectangle.y],
+        //     ..v0
+        // };
 
-        let v2 = Vertex {
-            position: [rectangle.x, rectangle.y + rectangle.height],
-            ..v0
-        };
+        // let v2 = Vertex {
+        //     position: [rectangle.x, rectangle.y + rectangle.height],
+        //     ..v0
+        // };
 
-        let v3 = Vertex {
-            position: [
-                rectangle.x + rectangle.width,
-                rectangle.y + rectangle.height,
-            ],
-            ..v0
-        };
+        // let v3 = Vertex {
+        //     position: [
+        //         rectangle.x + rectangle.width,
+        //         rectangle.y + rectangle.height,
+        //     ],
+        //     ..v0
+        // };
 
-        self.raw.vertices.push(v0);
-        self.raw.vertices.push(v1);
-        self.raw.vertices.push(v2);
-        self.raw.vertices.push(v1);
-        self.raw.vertices.push(v3);
-        self.raw.vertices.push(v2);
+        // self.raw.vertices.push(v0);
+        // self.raw.vertices.push(v1);
+        // self.raw.vertices.push(v2);
+        // self.raw.vertices.push(v1);
+        // self.raw.vertices.push(v3);
+        // self.raw.vertices.push(v2);
     }
 
     pub fn draw_rectangle_lines(
@@ -344,74 +444,81 @@ impl<'a, 'b> Renderer<'b> {
         origin: Vec2<f32>,
         color: Color,
     ) {
-        self.draw_line(
-            Line {
-                start: Vec2::new(rectangle.x, rectangle.y + 0.5),
-                end: Vec2::new(rectangle.x + rectangle.width, rectangle.y + 0.5),
-            },
-            rotation,
-            origin,
-            color,
-        );
+        self.raw
+            .tx
+            .send(RenderAction::Command(RenderCommand::DrawRectangleLines {
+                rectangle,
+                rotation,
+                origin,
+                color,
+            }));
+        // self.draw_line(
+        //     Line {
+        //         start: Vec2::new(rectangle.x, rectangle.y + 0.5),
+        //         end: Vec2::new(rectangle.x + rectangle.width, rectangle.y + 0.5),
+        //     },
+        //     rotation,
+        //     origin,
+        //     color,
+        // );
 
-        self.draw_line(
-            Line {
-                start: Vec2::new(rectangle.x + rectangle.width - 0.5, rectangle.y),
-                end: Vec2::new(
-                    rectangle.x + rectangle.width - 0.5,
-                    rectangle.y + rectangle.height,
-                ),
-            },
-            rotation,
-            origin,
-            color,
-        );
+        // self.draw_line(
+        //     Line {
+        //         start: Vec2::new(rectangle.x + rectangle.width - 0.5, rectangle.y),
+        //         end: Vec2::new(
+        //             rectangle.x + rectangle.width - 0.5,
+        //             rectangle.y + rectangle.height,
+        //         ),
+        //     },
+        //     rotation,
+        //     origin,
+        //     color,
+        // );
 
-        self.draw_line(
-            Line {
-                start: Vec2::new(
-                    rectangle.x + rectangle.width,
-                    rectangle.y + rectangle.height - 0.5,
-                ),
-                end: Vec2::new(rectangle.x, rectangle.y + rectangle.height - 0.5),
-            },
-            rotation,
-            origin,
-            color,
-        );
+        // self.draw_line(
+        //     Line {
+        //         start: Vec2::new(
+        //             rectangle.x + rectangle.width,
+        //             rectangle.y + rectangle.height - 0.5,
+        //         ),
+        //         end: Vec2::new(rectangle.x, rectangle.y + rectangle.height - 0.5),
+        //     },
+        //     rotation,
+        //     origin,
+        //     color,
+        // );
 
-        self.draw_line(
-            Line {
-                start: Vec2::new(rectangle.x + 0.5, rectangle.y + rectangle.height),
-                end: Vec2::new(rectangle.x + 0.5, rectangle.y),
-            },
-            rotation,
-            origin,
-            color,
-        );
+        // self.draw_line(
+        //     Line {
+        //         start: Vec2::new(rectangle.x + 0.5, rectangle.y + rectangle.height),
+        //         end: Vec2::new(rectangle.x + 0.5, rectangle.y),
+        //     },
+        //     rotation,
+        //     origin,
+        //     color,
+        // );
     }
 }
 
-impl RawRenderer {
-    pub(crate) async fn new(
-        window: impl Into<wgpu::SurfaceTarget<'static>>,
+impl Drop for RawRenderer {
+    fn drop(&mut self) {
+        self.tx.send(RenderAction::Die);
+
+        if let Some(handle) = self.handle.take() {
+            handle.join();
+        }
+    }
+}
+
+impl RenderThread {
+    async fn new(
+        surface: wgpu::Surface<'static>,
+        adapter: &wgpu::Adapter,
+        surface_configuration: wgpu::SurfaceConfiguration,
+        rx: std::sync::mpsc::Receiver<RenderAction>,
         width: u32,
         height: u32,
-    ) -> Self {
-        let instance = wgpu::Instance::default();
-        let surface = instance
-            .create_surface(window)
-            .expect("could not create surface");
-
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                force_fallback_adapter: false,
-                compatible_surface: Some(&surface),
-            })
-            .await
-            .expect("could not request adapter");
-
+    ) -> Option<Self> {
         let (mut device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("device"),
@@ -423,19 +530,6 @@ impl RawRenderer {
             })
             .await
             .expect("could not request device");
-
-        let surface_capabilities = surface.get_capabilities(&adapter);
-        let surface_format = surface_capabilities.formats[0];
-        let surface_configuration = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width,
-            height,
-            present_mode: surface_capabilities.present_modes[0],
-            desired_maximum_frame_latency: 2,
-            alpha_mode: surface_capabilities.alpha_modes[0],
-            view_formats: Vec::new(),
-        };
 
         surface.configure(&device, &surface_configuration);
 
@@ -457,8 +551,9 @@ impl RawRenderer {
 
         let view_projection_stride = device.limits().min_uniform_buffer_offset_alignment;
 
-        Self {
+        Some(Self {
             surface,
+            rx,
             surface_configuration,
             device,
             queue,
@@ -475,33 +570,25 @@ impl RawRenderer {
             view_projection_stride,
             view_projections_max,
             view_projections: Vec::new(),
-        }
+        })
     }
 
-    pub(crate) fn resize(&mut self, width: u32, height: u32) {
+    fn resize(&mut self, width: u32, height: u32) {
         self.surface_configuration.width = width;
         self.surface_configuration.height = height;
+
         self.surface
             .configure(&self.device, &self.surface_configuration);
+
+        // if let Some(ref mut surface) = self.surface {
+        //     // surface.configure(&self.device, &self.surface_configuration);
+        // }
+
         self.camera.resize(width as f32, height as f32);
         self.camera
             .reposition(Vec2::new(width as f32 / 2.0, height as f32 / 2.0));
+
         self.view_projection_default = self.camera.view_projection();
-    }
-
-    pub(crate) fn begin<'a>(&mut self) -> Renderer<'_> {
-        self.vertices.clear();
-        self.view_projections.clear();
-
-        self.view_projections.push(self.view_projection_default);
-
-        self.batches.push(RenderBatch {
-            start: 0,
-            end: 0,
-            view_projection_idx: (self.view_projections.len() - 1) as u32,
-        });
-
-        Renderer { raw: self }
     }
 
     fn render(&mut self) {
@@ -649,4 +736,489 @@ impl RawRenderer {
             mapped_at_creation: false,
         })
     }
+
+    fn begin(&mut self) {
+        self.vertices.clear();
+        self.view_projections.clear();
+
+        self.view_projections.push(self.view_projection_default);
+
+        self.batches.push(RenderBatch {
+            start: 0,
+            end: 0,
+            view_projection_idx: (self.view_projections.len() - 1) as u32,
+        });
+    }
+
+    fn end(&mut self) {
+        let idx = self.batches.len() - 1;
+        let len = self.vertices.len() as u32;
+
+        // end the current batch
+        self.batches[idx].end = len;
+
+        // remove empty batches
+        self.batches.retain(|x| x.start != x.end);
+
+        self.render();
+    }
+
+    fn begin_scope(&mut self, view_projection: [[f32; 4]; 4]) {
+        let idx = self.batches.len() - 1;
+        let len = self.vertices.len() as u32;
+
+        // end the current batch
+        self.batches[idx].end = len;
+
+        // try to reuse view projection if it exists
+        let vp_idx = self
+            .view_projections
+            .iter()
+            .position(|x| *x == view_projection)
+            .unwrap_or_else(|| {
+                self.view_projections.push(view_projection);
+                self.view_projections.len() - 1
+            });
+
+        // create new batch
+        self.batches.push(RenderBatch {
+            start: len,
+            end: 0,
+            view_projection_idx: vp_idx as u32,
+        });
+    }
+
+    fn end_scope(&mut self) {
+        let idx = self.batches.len() - 1;
+        let len = self.vertices.len() as u32;
+
+        // end the current batch
+        self.batches[idx].end = len;
+
+        // restore the previous batch
+        self.batches.push(RenderBatch {
+            start: len,
+            end: 0,
+            view_projection_idx: self.batches[idx - 1].view_projection_idx,
+        });
+    }
+
+    fn draw_line(&mut self, line: Line<f32>, rotation: Vec2<f32>, origin: Vec2<f32>, color: Color) {
+        let corners = |a: Vec2<f32>, b: Vec2<f32>| {
+            let dir = b - a;
+            let norm = dir.perp().normalized() * 0.5;
+            (a + norm, b + norm, b - norm, a - norm)
+        };
+
+        let (c0, c1, c2, c3) = corners(line.start, line.end);
+
+        let v0 = Vertex {
+            position: c0.into(),
+            rotation: rotation.into(),
+            origin: origin.into(),
+            color: color.into(),
+        };
+
+        let v1 = Vertex {
+            position: c1.into(),
+            ..v0
+        };
+
+        let v2 = Vertex {
+            position: c2.into(),
+            ..v0
+        };
+
+        let v3 = Vertex {
+            position: c3.into(),
+            ..v0
+        };
+
+        self.vertices.push(v0);
+        self.vertices.push(v1);
+        self.vertices.push(v2);
+        self.vertices.push(v2);
+        self.vertices.push(v3);
+        self.vertices.push(v0);
+    }
+
+    fn draw_triangle_filled(
+        &mut self,
+        triangle: Triangle<f32>,
+        rotation: Vec2<f32>,
+        origin: Vec2<f32>,
+        color: Color,
+    ) {
+        let top = Vertex {
+            position: triangle.top.into(),
+            rotation: rotation.into(),
+            origin: origin.into(),
+            color: color.into(),
+        };
+
+        let left = Vertex {
+            position: triangle.left.into(),
+            ..top
+        };
+
+        let right = Vertex {
+            position: triangle.right.into(),
+            ..top
+        };
+
+        self.vertices.push(top);
+        self.vertices.push(left);
+        self.vertices.push(right);
+    }
+
+    fn draw_triangle_lines(
+        &mut self,
+        triangle: Triangle<f32>,
+        rotation: Vec2<f32>,
+        origin: Vec2<f32>,
+        color: Color,
+    ) {
+        let corners = [triangle.top, triangle.left, triangle.right];
+
+        // TOOD: the lines don't match up 100% with the filled version
+        for i in 0..corners.len() {
+            self.draw_line(
+                Line {
+                    start: corners[i],
+                    end: corners[(i + 1) % 3],
+                },
+                rotation,
+                origin,
+                color,
+            );
+        }
+    }
+
+    fn draw_rectangle_filled(
+        &mut self,
+        rectangle: Rectangle<f32>,
+        rotation: Vec2<f32>,
+        origin: Vec2<f32>,
+        color: Color,
+    ) {
+        let v0 = Vertex {
+            position: [rectangle.x, rectangle.y],
+            rotation: rotation.into(),
+            origin: origin.into(),
+            color: color.into(),
+        };
+
+        let v1 = Vertex {
+            position: [rectangle.x + rectangle.width, rectangle.y],
+            ..v0
+        };
+
+        let v2 = Vertex {
+            position: [rectangle.x, rectangle.y + rectangle.height],
+            ..v0
+        };
+
+        let v3 = Vertex {
+            position: [
+                rectangle.x + rectangle.width,
+                rectangle.y + rectangle.height,
+            ],
+            ..v0
+        };
+
+        self.vertices.push(v0);
+        self.vertices.push(v1);
+        self.vertices.push(v2);
+        self.vertices.push(v1);
+        self.vertices.push(v3);
+        self.vertices.push(v2);
+    }
+
+    fn draw_rectangle_lines(
+        &mut self,
+        rectangle: Rectangle<f32>,
+        rotation: Vec2<f32>,
+        origin: Vec2<f32>,
+        color: Color,
+    ) {
+        self.draw_line(
+            Line {
+                start: Vec2::new(rectangle.x, rectangle.y + 0.5),
+                end: Vec2::new(rectangle.x + rectangle.width, rectangle.y + 0.5),
+            },
+            rotation,
+            origin,
+            color,
+        );
+
+        self.draw_line(
+            Line {
+                start: Vec2::new(rectangle.x + rectangle.width - 0.5, rectangle.y),
+                end: Vec2::new(
+                    rectangle.x + rectangle.width - 0.5,
+                    rectangle.y + rectangle.height,
+                ),
+            },
+            rotation,
+            origin,
+            color,
+        );
+
+        self.draw_line(
+            Line {
+                start: Vec2::new(
+                    rectangle.x + rectangle.width,
+                    rectangle.y + rectangle.height - 0.5,
+                ),
+                end: Vec2::new(rectangle.x, rectangle.y + rectangle.height - 0.5),
+            },
+            rotation,
+            origin,
+            color,
+        );
+
+        self.draw_line(
+            Line {
+                start: Vec2::new(rectangle.x + 0.5, rectangle.y + rectangle.height),
+                end: Vec2::new(rectangle.x + 0.5, rectangle.y),
+            },
+            rotation,
+            origin,
+            color,
+        );
+    }
+}
+
+impl RawRenderer {
+    pub(crate) async fn new(
+        window: impl Into<wgpu::SurfaceTarget<'static>>,
+        width: u32,
+        height: u32,
+    ) -> Self {
+        let instance = wgpu::Instance::default();
+        let surface = instance
+            .create_surface(window)
+            .expect("could not create surface");
+
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::default(),
+                force_fallback_adapter: false,
+                compatible_surface: Some(&surface),
+            })
+            .await
+            .expect("could not request adapter");
+
+        let surface_capabilities = surface.get_capabilities(&adapter);
+        let surface_format = surface_capabilities.formats[0];
+        let surface_configuration = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format,
+            width,
+            height,
+            present_mode: surface_capabilities.present_modes[0],
+            desired_maximum_frame_latency: 2,
+            alpha_mode: surface_capabilities.alpha_modes[0],
+            view_formats: Vec::new(),
+        };
+
+        let (tx, rx) = std::sync::mpsc::sync_channel::<RenderAction>(512);
+
+        let mut thread =
+            RenderThread::new(surface, &adapter, surface_configuration, rx, width, height)
+                .await
+                .expect("could not create render thread");
+
+        let handle = std::thread::spawn(move || {
+            let mut running = true;
+
+            while running {
+                while let Ok(action) = thread.rx.try_recv() {
+                    match action {
+                        RenderAction::Die => running = false,
+                        RenderAction::Command(render_command) => match render_command {
+                            RenderCommand::DrawLine {
+                                line,
+                                rotation,
+                                origin,
+                                color,
+                            } => thread.draw_line(line, rotation, origin, color),
+                            RenderCommand::DrawTriangleFilled {
+                                triangle,
+                                rotation,
+                                origin,
+                                color,
+                            } => thread.draw_triangle_filled(triangle, rotation, origin, color),
+                            RenderCommand::DrawTriangleLines {
+                                triangle,
+                                rotation,
+                                origin,
+                                color,
+                            } => thread.draw_triangle_lines(triangle, rotation, origin, color),
+                            RenderCommand::DrawRectangleFilled {
+                                rectangle,
+                                rotation,
+                                origin,
+                                color,
+                            } => thread.draw_rectangle_filled(rectangle, rotation, origin, color),
+                            RenderCommand::DrawRectangleLines {
+                                rectangle,
+                                rotation,
+                                origin,
+                                color,
+                            } => thread.draw_rectangle_lines(rectangle, rotation, origin, color),
+                        },
+                        RenderAction::Resize { width, height } => {
+                            thread.resize(width, height);
+                        }
+                        RenderAction::Begin => {
+                            thread.begin();
+                        }
+                        RenderAction::End => {
+                            thread.end();
+                        }
+                        RenderAction::BeginScope { view_projection } => {
+                            thread.begin_scope(view_projection);
+                        }
+                        RenderAction::EndScope => {
+                            thread.end_scope();
+                        }
+                    }
+                }
+            }
+        });
+
+        Self {
+            tx,
+            handle: Some(handle),
+        }
+    }
+
+    pub(crate) fn resize(&mut self, width: u32, height: u32) {
+        // self.surface_configuration.width = width;
+        // self.surface_configuration.height = height;
+        // self.surface
+        //     .configure(&self.device, &self.surface_configuration);
+
+        self.tx.send(RenderAction::Resize { width, height });
+        // self.camera.resize(width as f32, height as f32);
+        // self.camera
+        //     .reposition(Vec2::new(width as f32 / 2.0, height as f32 / 2.0));
+        // self.view_projection_default = self.camera.view_projection();
+    }
+
+    pub(crate) fn begin<'a>(&mut self) -> Renderer<'_> {
+        // self.vertices.clear();
+        // self.view_projections.clear();
+
+        // self.view_projections.push(self.view_projection_default);
+
+        // self.batches.push(RenderBatch {
+        //     start: 0,
+        //     end: 0,
+        //     view_projection_idx: (self.view_projections.len() - 1) as u32,
+        // });
+
+        self.tx.send(RenderAction::Begin);
+
+        Renderer { raw: self }
+    }
+
+    // fn render(&mut self) {
+    // if self.view_projections.len() > self.view_projections_max {
+    //     // recreate uniform and pipeline to ensure we can support
+    //     // the required amount of view projections
+    //     while self.view_projections_max < self.view_projections.len() {
+    //         self.view_projections_max *= 2;
+    //     }
+
+    //     self.uniform = Uniform::new(&mut self.device, self.view_projections_max);
+    //     self.pipeline = Self::create_pipeline(
+    //         &mut self.device,
+    //         &self.uniform,
+    //         &self.shader,
+    //         &self.surface_configuration,
+    //     );
+    // }
+
+    // if self.vertices.len() > self.vertices_max {
+    //     // recreate vertex buffer to ensure we can support
+    //     // the required amount of vertices
+    //     while self.vertices_max < self.vertices.len() {
+    //         self.vertices_max *= 2;
+    //     }
+
+    //     self.buffer = Self::create_buffer(&mut self.device, self.vertices_max);
+    // }
+
+    // let mut encoder = self
+    //     .device
+    //     .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+    //         label: Some("encoder"),
+    //     });
+
+    // let surface_texture = self
+    //     .surface
+    //     .get_current_texture()
+    //     .expect("could not get current texture");
+
+    // let surface_view = surface_texture
+    //     .texture
+    //     .create_view(&wgpu::TextureViewDescriptor::default());
+
+    // {
+    //     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+    //         label: Some("render_pass"),
+    //         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+    //             view: &surface_view,
+    //             depth_slice: None,
+    //             resolve_target: None,
+    //             ops: wgpu::Operations {
+    //                 load: wgpu::LoadOp::Clear(self.clear_color),
+    //                 store: wgpu::StoreOp::Store,
+    //             },
+    //         })],
+    //         depth_stencil_attachment: None,
+    //         timestamp_writes: None,
+    //         occlusion_query_set: None,
+    //         multiview_mask: None,
+    //     });
+
+    //     self.queue
+    //         .write_buffer(&self.buffer, 0, bytemuck::cast_slice(&self.vertices));
+
+    //     for (i, view_projection) in self.view_projections.iter().enumerate() {
+    //         let offset = i as u32 * self.view_projection_stride;
+
+    //         self.queue.write_buffer(
+    //             &self.uniform.buffer,
+    //             offset as u64,
+    //             bytemuck::cast_slice(&[UniformBuffer {
+    //                 view_projection: *view_projection,
+    //             }]),
+    //         );
+    //     }
+
+    //     // TODO: read more about viewport
+    //     // render_pass.set_viewport(x, y, w, h, min_depth, max_depth);
+
+    //     render_pass.set_pipeline(&self.pipeline);
+    //     render_pass.set_vertex_buffer(0, self.buffer.slice(..));
+
+    //     for batch in self.batches.iter() {
+    //         render_pass.set_bind_group(
+    //             0,
+    //             &self.uniform.bind_group,
+    //             &[batch.view_projection_idx * self.view_projection_stride],
+    //         );
+
+    //         render_pass.draw(batch.start..batch.end, 0..1);
+    //     }
+
+    //     self.batches.clear();
+    // }
+
+    // self.queue.submit(std::iter::once(encoder.finish()));
+    // surface_texture.present();
+    // }
 }
