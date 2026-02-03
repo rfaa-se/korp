@@ -8,30 +8,30 @@ use crate::{
     shapes::{Line, Rectangle, Triangle},
 };
 
-pub struct RawRenderer {
+pub struct RawRenderer<T: Send + Sync + 'static> {
     // surface: wgpu::Surface<'static>,
     // surface_configuration: wgpu::SurfaceConfiguration,
     // device: wgpu::Device,
-    tx: std::sync::mpsc::SyncSender<RenderAction>,
+    tx: std::sync::mpsc::SyncSender<RenderAction<T>>,
     handle: Option<std::thread::JoinHandle<()>>,
 }
 
-pub struct Renderer<'a> {
-    raw: &'a mut RawRenderer,
+pub struct Renderer<'a, T: Send + Sync + 'static> {
+    raw: &'a mut RawRenderer<T>,
 }
 
-pub struct RendererScope<'a, 'b>
+pub struct RendererScope<'a, 'b, T: Send + Sync + 'static>
 where
     'b: 'a,
 {
-    pub renderer: &'a mut Renderer<'b>,
+    pub renderer: &'a mut Renderer<'b, T>,
     pub camera: &'a Camera,
 }
 
-struct RenderThread {
+struct RenderThread<T: Send + Sync + 'static> {
     // surface: Option<wgpu::Surface<'static>>,
     surface: wgpu::Surface<'static>,
-    rx: std::sync::mpsc::Receiver<RenderAction>,
+    rx: std::sync::mpsc::Receiver<RenderAction<T>>,
     // surface_configuration: std::sync::Arc<std::sync::Mutex<wgpu::SurfaceConfiguration>>,
     surface_configuration: wgpu::SurfaceConfiguration,
     device: wgpu::Device,
@@ -49,13 +49,16 @@ struct RenderThread {
     view_projection_stride: u32,
     view_projections_max: usize,
     view_projections: Vec<[[f32; 4]; 4]>,
+    callback: fn(&T, &mut Renderer<T>, &mut Camera, f32),
+    data: Option<T>,
 }
 
-struct Frame {
-    actions: Vec<RenderAction>,
-}
+// struct Frame<T> {
+//     actions: Vec<RenderAction<T>>,
+// }
 
-enum RenderAction {
+enum RenderAction<T: Send + Sync> {
+    Data(T),
     Command(RenderCommand),
     Resize { width: u32, height: u32 },
     Die,
@@ -191,7 +194,7 @@ impl Uniform {
     }
 }
 
-impl Drop for RendererScope<'_, '_> {
+impl<T: Send + Sync> Drop for RendererScope<'_, '_, T> {
     fn drop(&mut self) {
         // let idx = self.renderer.raw.batches.len() - 1;
         // let len = self.renderer.raw.vertices.len() as u32;
@@ -209,7 +212,7 @@ impl Drop for RendererScope<'_, '_> {
     }
 }
 
-impl Drop for Renderer<'_> {
+impl<T: Send + Sync> Drop for Renderer<'_, T> {
     fn drop(&mut self) {
         // let idx = self.raw.batches.len() - 1;
         // let len = self.raw.vertices.len() as u32;
@@ -230,8 +233,8 @@ impl Drop for Renderer<'_> {
     }
 }
 
-impl<'a, 'b> Renderer<'b> {
-    pub fn begin(&'a mut self, camera: &'a Camera) -> RendererScope<'a, 'b> {
+impl<'a, 'b, T: Send + Sync> Renderer<'b, T> {
+    pub fn begin(&'a mut self, camera: &'a Camera) -> RendererScope<'a, 'b, T> {
         // let idx = self.raw.batches.len() - 1;
         // let len = self.raw.vertices.len() as u32;
 
@@ -500,7 +503,7 @@ impl<'a, 'b> Renderer<'b> {
     }
 }
 
-impl Drop for RawRenderer {
+impl<T: Send + Sync> Drop for RawRenderer<T> {
     fn drop(&mut self) {
         self.tx.send(RenderAction::Die);
 
@@ -510,14 +513,15 @@ impl Drop for RawRenderer {
     }
 }
 
-impl RenderThread {
+impl<T: Send + Sync> RenderThread<T> {
     async fn new(
         surface: wgpu::Surface<'static>,
         adapter: &wgpu::Adapter,
         surface_configuration: wgpu::SurfaceConfiguration,
-        rx: std::sync::mpsc::Receiver<RenderAction>,
+        rx: std::sync::mpsc::Receiver<RenderAction<T>>,
         width: u32,
         height: u32,
+        callback: fn(&T, &mut Renderer<T>, &mut Camera, f32),
     ) -> Option<Self> {
         let (mut device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
@@ -570,6 +574,8 @@ impl RenderThread {
             view_projection_stride,
             view_projections_max,
             view_projections: Vec::new(),
+            callback,
+            data: None,
         })
     }
 
@@ -989,11 +995,12 @@ impl RenderThread {
     }
 }
 
-impl RawRenderer {
+impl<T: Send + Sync + 'static> RawRenderer<T> {
     pub(crate) async fn new(
         window: impl Into<wgpu::SurfaceTarget<'static>>,
         width: u32,
         height: u32,
+        callback: fn(&T, &mut Renderer<T>, &mut Camera, f32),
     ) -> Self {
         let instance = wgpu::Instance::default();
         let surface = instance
@@ -1022,12 +1029,19 @@ impl RawRenderer {
             view_formats: Vec::new(),
         };
 
-        let (tx, rx) = std::sync::mpsc::sync_channel::<RenderAction>(512);
+        let (tx, rx) = std::sync::mpsc::sync_channel::<RenderAction<T>>(512);
 
-        let mut thread =
-            RenderThread::new(surface, &adapter, surface_configuration, rx, width, height)
-                .await
-                .expect("could not create render thread");
+        let mut thread = RenderThread::<T>::new(
+            surface,
+            &adapter,
+            surface_configuration,
+            rx,
+            width,
+            height,
+            callback,
+        )
+        .await
+        .expect("could not create render thread");
 
         let handle = std::thread::spawn(move || {
             let mut running = true;
@@ -1035,6 +1049,7 @@ impl RawRenderer {
             while running {
                 while let Ok(action) = thread.rx.try_recv() {
                     match action {
+                        // TODO: should probably kill it by other means
                         RenderAction::Die => running = false,
                         RenderAction::Command(render_command) => match render_command {
                             RenderCommand::DrawLine {
@@ -1083,6 +1098,9 @@ impl RawRenderer {
                         RenderAction::EndScope => {
                             thread.end_scope();
                         }
+                        RenderAction::Data(data) => {
+                            thread.data = Some(data);
+                        }
                     }
                 }
             }
@@ -1107,7 +1125,7 @@ impl RawRenderer {
         // self.view_projection_default = self.camera.view_projection();
     }
 
-    pub(crate) fn begin<'a>(&mut self) -> Renderer<'_> {
+    pub(crate) fn begin<'a>(&mut self) -> Renderer<'_, T> {
         // self.vertices.clear();
         // self.view_projections.clear();
 
@@ -1123,6 +1141,14 @@ impl RawRenderer {
 
         Renderer { raw: self }
     }
+
+    pub(crate) fn update(&mut self, data: T) {
+        self.tx.send(RenderAction::Data(data));
+    }
+
+    pub(crate) fn render(&self, alpha: f32) {}
+
+    // pub(crate) fn render(&mut self, alpha: f32) {}
 
     // fn render(&mut self) {
     // if self.view_projections.len() > self.view_projections_max {

@@ -61,11 +61,13 @@ impl Korp {
 pub struct RenderData {
     bodies: Vec<Morph<crate::ecs::components::Body<f32>>>,
     hitboxes: Vec<Morph<Rectangle<f32>>>,
-    camera: Camera,
+    camera_target: Morph<Vec2<f32>>,
 }
 
 impl Core for Korp {
-    fn update(&mut self) {
+    type RenderData = RenderData;
+
+    fn update(&mut self) -> RenderData {
         self.commands.clear();
 
         while let Some(action) = self.actions.pop() {
@@ -89,6 +91,26 @@ impl Core for Korp {
             // when player is dead, set the new value as the old to prevent wobbling
             // TODO: listen to when player dies and set the camera target then, once
             self.camera_target.old = self.camera_target.new;
+        }
+
+        RenderData {
+            bodies: self
+                .cosmos
+                .components
+                .render
+                .bodies
+                .iter()
+                .map(|(_, body)| body.clone())
+                .collect(),
+            hitboxes: self
+                .cosmos
+                .components
+                .render
+                .hitboxes
+                .iter()
+                .map(|(_, x)| x.clone())
+                .collect(),
+            camera_target: self.camera_target,
         }
     }
 
@@ -172,34 +194,35 @@ impl Core for Korp {
         self.camera.resize(width as f32, height as f32);
     }
 
-    type RenderData = RenderData;
+    fn render(
+        data: &RenderData,
+        renderer: &mut Renderer<RenderData>,
+        camera: &mut Camera,
+        alpha: f32,
+    ) {
+        camera.reposition(Vec2::new(
+            lerp(data.camera_target.old.x, data.camera_target.new.x, alpha),
+            lerp(data.camera_target.old.y, data.camera_target.new.y, alpha),
+        ));
 
-    fn render(data: &mut Self::RenderData, renderer: &mut Renderer, alpha: f32) {
-        data.camera.reposition(position);
-    }
+        {
+            // render cosmos using the camera
+            let scope = renderer.begin(&camera);
 
-    fn work(&mut self) -> Self::RenderData {
-        RenderData {
-            bodies: self
-                .cosmos
-                .components
-                .render
-                .bodies
-                .iter()
-                .map(|(_, body)| body.clone())
-                .collect(),
-            hitboxes: self
-                .cosmos
-                .components
-                .render
-                .hitboxes
-                .iter()
-                .map(|(_, x)| x.clone())
-                .collect(),
-            camera: todo!(),
+            // self.cosmos.render(scope.renderer, self.toggle, alpha);
+            for body in data.bodies.iter() {
+                body.render(scope.renderer, false, alpha);
+            }
         }
-    }
 
+        // render ui
+        renderer.draw_rectangle_lines(
+            Rectangle::from(800.0, 120.0, Vec2::new(400.0, 540.0)),
+            Vec2::new(1.0, 0.0),
+            Vec2::new(400.0, 540.0),
+            Color::GREEN,
+        );
+    }
     // // type RenderConfigurator = Fn(&RenderData, &mut Renderer, f32);
     // type RenderConfigurator = fn(&RenderData, &mut Renderer, f32);
 
@@ -259,9 +282,5 @@ impl KeyBindings {
             triangle: KeyCode::Digit1,
             rectangle: KeyCode::Digit2,
         }
-    }
-
-    fn r(&self) -> impl FnMut(&RenderData, &mut Renderer) {
-        move |data, renderer| {}
     }
 }

@@ -8,15 +8,15 @@ use std::{
 
 use korp_math::Vec2;
 
-use crate::input::Input;
 use crate::renderer::{RawRenderer, Renderer};
+use crate::{input::Input, renderer::Camera};
 
 pub trait Core {
-    type RenderData: Send + Sync;
+    type RenderData: Send + Sync + 'static;
     // type RenderConfigurator: Fn(&Self::RenderData, &mut Renderer, f32) + Send + Sync;
     // type Job: FnMut(Arc<Self::RenderData>) + Send + Sync;
 
-    fn update(&mut self);
+    fn update(&mut self) -> Self::RenderData;
     fn input(&mut self, input: &Input);
     // fn prepare(&self, data: &mut Self::RenderData);
     // fn prepare(&self) -> Self::RenderConfigurator;
@@ -26,12 +26,17 @@ pub trait Core {
     fn resize(&mut self, width: u32, height: u32);
     // fn data(&self) -> Self::RenderData;
     // fn r(&self) -> Self::Job;
-    fn render(data: &mut Self::RenderData, renderer: &mut Renderer, alpha: f32);
-    fn work(&mut self) -> Self::RenderData;
+    fn render(
+        data: &Self::RenderData,
+        renderer: &mut Renderer<Self::RenderData>,
+        camera: &mut Camera,
+        alpha: f32,
+    );
+    // fn work(&mut self) -> Self::RenderData;
 }
 
 pub struct Engine<T: Core> {
-    state: State,
+    state: State<T::RenderData>,
     last_render: Instant,
     elapsed: Duration,
     accumulator: Duration,
@@ -46,10 +51,10 @@ pub struct Engine<T: Core> {
     // active: Arc<AtomicBool>,
 }
 
-enum State {
+enum State<T: Send + Sync + 'static> {
     Uninitialized,
     Initialized {
-        renderer: RawRenderer,
+        renderer: RawRenderer<T>,
         // window must be last, otherwise segfault at exit
         window: Arc<winit::window::Window>,
     },
@@ -104,8 +109,9 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
             let window = Arc::new(window);
             let inner_size = window.inner_size();
             let (width, height) = (inner_size.width, inner_size.height);
-            let renderer =
-                pollster::block_on(async { RawRenderer::new(window.clone(), width, height).await });
+            let renderer = pollster::block_on(async {
+                RawRenderer::new(window.clone(), width, height, T::render).await
+            });
 
             self.state = State::Initialized { renderer, window };
         }
@@ -164,7 +170,6 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
                 let delta = now - self.last_render;
                 let core = &mut self.core;
                 let input = &mut self.input;
-                // let ren = core.prepare();
 
                 self.last_render = now;
                 self.elapsed += delta;
@@ -176,8 +181,8 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
                     self.tps += 1;
 
                     core.input(input);
-                    core.update();
-
+                    let data = core.update();
+                    renderer.update(data);
                     input.update();
 
                     // let current = self.active.load(Ordering::Relaxed);
@@ -189,17 +194,18 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
 
                 let alpha = self.accumulator.as_secs_f32() / self.timestep.as_secs_f32();
 
-                let mut renderer = renderer.begin();
+                renderer.render(alpha);
+
+                // let mut renderer = renderer.begin();
                 // ren(todo!(), &mut renderer, alpha);
                 // core.render(&mut renderer, alpha);
                 // let active = self.active.clone();
                 // let mut a = self.buffer[0].clone();
                 // let mut b = self.buffer[1].clone();
                 // let mut buf = [a, b];
-                let mut data = core.work();
-                std::thread::spawn(move || {
-                    T::render(&mut data, &mut renderer, alpha);
-                });
+                // std::thread::spawn(move || {
+                //     T::render(&mut data, &mut renderer, alpha);
+                // });
 
                 // std::thread::spawn(move || {
                 //     loop {
