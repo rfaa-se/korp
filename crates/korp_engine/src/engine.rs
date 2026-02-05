@@ -1,38 +1,22 @@
 use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use korp_math::Vec2;
 
-use crate::renderer::{RawRenderer, Renderer};
-use crate::{input::Input, renderer::Camera};
+use crate::input::Input;
+use crate::renderer::{Renderer, ThreadRenderer};
 
 pub trait Core {
     type RenderData: Send + Sync + 'static;
-    // type RenderConfigurator: Fn(&Self::RenderData, &mut Renderer, f32) + Send + Sync;
-    // type Job: FnMut(Arc<Self::RenderData>) + Send + Sync;
 
     fn update(&mut self) -> Self::RenderData;
     fn input(&mut self, input: &Input);
-    // fn prepare(&self, data: &mut Self::RenderData);
-    // fn prepare(&self) -> Self::RenderConfigurator;
-    // fn render(&mut self, renderer: &mut Renderer, alpha: f32);
     // fn init(&mut self);
     // fn exit(&mut self);
     fn resize(&mut self, width: u32, height: u32);
-    // fn data(&self) -> Self::RenderData;
-    // fn r(&self) -> Self::Job;
-    fn render(
-        data: &Self::RenderData,
-        renderer: &mut Renderer<Self::RenderData>,
-        camera: &mut Camera,
-        alpha: f32,
-    );
-    // fn work(&mut self) -> Self::RenderData;
+    fn render(data: &mut Self::RenderData, renderer: &mut Renderer, alpha: f32);
 }
 
 pub struct Engine<T: Core> {
@@ -46,15 +30,14 @@ pub struct Engine<T: Core> {
     core: T,
     fps: u32,
     tps: u32,
+    tps_requested: u8,
     title: String,
-    // buffer: [Arc<T::RenderData>; 2],
-    // active: Arc<AtomicBool>,
 }
 
 enum State<T: Send + Sync + 'static> {
     Uninitialized,
     Initialized {
-        renderer: RawRenderer<T>,
+        renderer: ThreadRenderer<T>,
         // window must be last, otherwise segfault at exit
         window: Arc<winit::window::Window>,
     },
@@ -75,6 +58,7 @@ impl<T: Core> Engine<T> {
             core,
             fps: 0,
             tps: 0,
+            tps_requested: tps,
             title: title.to_owned(),
             // buffer: [Arc::new(buffer[0]), Arc::new(buffer[1])],
             // active: Arc::new(AtomicBool::new(false)),
@@ -110,7 +94,8 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
             let inner_size = window.inner_size();
             let (width, height) = (inner_size.width, inner_size.height);
             let renderer = pollster::block_on(async {
-                RawRenderer::new(window.clone(), width, height, T::render).await
+                ThreadRenderer::new(window.clone(), width, height, self.tps_requested, T::render)
+                    .await
             });
 
             self.state = State::Initialized { renderer, window };
@@ -182,38 +167,9 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
 
                     core.input(input);
                     let data = core.update();
-                    renderer.update(data);
                     input.update();
-
-                    // let current = self.active.load(Ordering::Relaxed);
-                    // let idx = if current { 0 } else { 1 };
-                    // let data = Arc::get_mut(&mut self.buffer[idx]).unwrap();
-                    // core.prepare(data);
-                    // self.active.store(!current, Ordering::Release);
+                    renderer.submit(data);
                 }
-
-                let alpha = self.accumulator.as_secs_f32() / self.timestep.as_secs_f32();
-
-                renderer.render(alpha);
-
-                // let mut renderer = renderer.begin();
-                // ren(todo!(), &mut renderer, alpha);
-                // core.render(&mut renderer, alpha);
-                // let active = self.active.clone();
-                // let mut a = self.buffer[0].clone();
-                // let mut b = self.buffer[1].clone();
-                // let mut buf = [a, b];
-                // std::thread::spawn(move || {
-                //     T::render(&mut data, &mut renderer, alpha);
-                // });
-
-                // std::thread::spawn(move || {
-                //     loop {
-                //         let idx = if active.load(Ordering::Acquire) { 1 } else { 0 };
-                //         let abc = buf[idx];
-                //         // T::render(&self.core, &*d, &mut renderer, alpha);
-                //     }
-                // });
 
                 self.fps += 1;
 
@@ -233,6 +189,6 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
             _ => (),
         }
 
-        window.request_redraw();
+        // window.request_redraw();
     }
 }

@@ -3,18 +3,14 @@ use korp_math::Flint;
 
 use crate::{
     commands::Command,
-    ecs::{
-        components::Components,
-        forge::Forge,
-        systems::{Executor, Observer},
-    },
+    ecs::{components::Components, forge::Forge, systems::Executor},
 };
 
 pub struct Cosmos {
     pub components: Components,
     forge: Forge,
     executor: Executor,
-    observer: Observer,
+    // observer: Observer,
     bounds: Rectangle<Flint>,
 }
 
@@ -24,7 +20,7 @@ impl Cosmos {
             components: Components::new(),
             forge: Forge::new(),
             executor: Executor::new(),
-            observer: Observer::new(),
+            // observer: Observer::new(),
             bounds: Rectangle {
                 x: Flint::new(50, 0),
                 y: Flint::new(40, 0),
@@ -43,8 +39,8 @@ impl Cosmos {
         );
     }
 
-    pub fn render(&self, renderer: &mut Renderer, toggle: bool, alpha: f32) {
-        self.observer
-            .observe(&self.components, renderer, &self.bounds, toggle, alpha);
-    }
+    // pub fn render(&self, renderer: &mut Renderer, toggle: bool, alpha: f32) {
+    //     self.observer
+    //         .observe(&self.components, renderer, &self.bounds, toggle, alpha);
+    // }
 }

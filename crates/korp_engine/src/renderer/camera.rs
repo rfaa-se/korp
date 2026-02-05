@@ -1,5 +1,6 @@
 use korp_math::Vec2;
 
+#[derive(Clone)]
 pub struct Camera {
     half_width: f32,
     half_height: f32,

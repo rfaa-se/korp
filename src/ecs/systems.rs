@@ -9,7 +9,7 @@ mod physics;
 mod render;
 
 pub struct Executor {}
-pub struct Observer {}
+// pub struct Observer {}
 
 impl Executor {
     pub fn new() -> Self {
@@ -38,26 +38,26 @@ impl Executor {
     }
 }
 
-impl Observer {
-    pub fn new() -> Self {
-        Self {}
-    }
+// impl Observer {
+//     pub fn new() -> Self {
+//         Self {}
+//     }
 
-    pub fn observe(
-        &self,
-        components: &Components,
-        renderer: &mut Renderer,
-        bounds: &Rectangle<Flint>,
-        toggle: bool,
-        alpha: f32,
-    ) {
-        use render::*;
+//     pub fn observe(
+//         &self,
+//         components: &Components,
+//         renderer: &mut Renderer,
+//         bounds: &Rectangle<Flint>,
+//         toggle: bool,
+//         alpha: f32,
+//     ) {
+//         use render::*;
 
-        cosmos(bounds, renderer);
-        body(components, renderer, toggle, alpha);
-        hitbox(components, renderer, alpha);
-    }
-}
+//         cosmos(bounds, renderer);
+//         body(components, renderer, toggle, alpha);
+//         hitbox(components, renderer, alpha);
+//     }
+// }
 
 pub fn execute_commands(components: &mut Components, forge: &mut Forge, commands: &[Command]) {
     for command in commands {
