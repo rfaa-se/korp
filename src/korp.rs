@@ -10,11 +10,7 @@ use korp_math::{Flint, Vec2, lerp};
 
 use crate::{
     commands::{Command, Spawn},
-    ecs::{
-        components::{Body, traits::Renderable},
-        cosmos::Cosmos,
-        entities::Entity,
-    },
+    ecs::{cosmos::Cosmos, entities::Entity},
 };
 
 pub struct Korp {
@@ -62,17 +58,8 @@ impl Korp {
     }
 }
 
-pub struct RenderData {
-    bodies: Vec<Morph<Body<f32>>>,
-    hitboxes: Vec<Morph<Rectangle<f32>>>,
-    camera: Camera,
-    camera_target: Morph<Vec2<f32>>,
-}
-
 impl Core for Korp {
-    type RenderData = RenderData;
-
-    fn update(&mut self) -> RenderData {
+    fn update(&mut self) {
         self.commands.clear();
 
         while let Some(action) = self.actions.pop() {
@@ -96,27 +83,6 @@ impl Core for Korp {
             // when player is dead, set the new value as the old to prevent wobbling
             // TODO: listen to when player dies and set the camera target then, once
             self.camera_target.old = self.camera_target.new;
-        }
-
-        RenderData {
-            bodies: self
-                .cosmos
-                .components
-                .render
-                .bodies
-                .iter()
-                .map(|(_, body)| body.clone())
-                .collect(),
-            hitboxes: self
-                .cosmos
-                .components
-                .render
-                .hitboxes
-                .iter()
-                .map(|(_, x)| x.clone())
-                .collect(),
-            camera: self.camera.clone(),
-            camera_target: self.camera_target,
         }
     }
 
@@ -178,20 +144,16 @@ impl Core for Korp {
         self.camera.resize(width as f32, height as f32);
     }
 
-    fn render(data: &mut RenderData, renderer: &mut Renderer, alpha: f32) {
+    fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
         {
-            data.camera.reposition(Vec2::new(
-                lerp(data.camera_target.old.x, data.camera_target.new.x, alpha),
-                lerp(data.camera_target.old.y, data.camera_target.new.y, alpha),
+            self.camera.reposition(Vec2::new(
+                lerp(self.camera_target.old.x, self.camera_target.new.x, alpha),
+                lerp(self.camera_target.old.y, self.camera_target.new.y, alpha),
             ));
 
             // render cosmos using the camera
-            let scope = renderer.begin(&data.camera);
-
-            // self.cosmos.render(scope.renderer, self.toggle, alpha);
-            for body in data.bodies.iter() {
-                body.render(scope.renderer, false, alpha);
-            }
+            let scope = renderer.begin(&self.camera);
+            self.cosmos.render(scope.renderer, self.toggle, alpha);
         }
 
         // render ui

@@ -5,22 +5,20 @@ use std::{
 
 use korp_math::Vec2;
 
-use crate::input::Input;
-use crate::renderer::{Renderer, ThreadRenderer};
+use crate::renderer::Renderer;
+use crate::{input::Input, renderer::RawRenderer};
 
 pub trait Core {
-    type RenderData: Send + Sync + 'static;
-
-    fn update(&mut self) -> Self::RenderData;
+    fn update(&mut self);
     fn input(&mut self, input: &Input);
+    fn resize(&mut self, width: u32, height: u32);
+    fn render(&mut self, renderer: &mut Renderer, alpha: f32);
     // fn init(&mut self);
     // fn exit(&mut self);
-    fn resize(&mut self, width: u32, height: u32);
-    fn render(data: &mut Self::RenderData, renderer: &mut Renderer, alpha: f32);
 }
 
 pub struct Engine<T: Core> {
-    state: State<T::RenderData>,
+    state: State,
     last_render: Instant,
     elapsed: Duration,
     accumulator: Duration,
@@ -30,14 +28,13 @@ pub struct Engine<T: Core> {
     core: T,
     fps: u32,
     tps: u32,
-    tps_requested: u8,
     title: String,
 }
 
-enum State<T: Send + Sync + 'static> {
+enum State {
     Uninitialized,
     Initialized {
-        renderer: ThreadRenderer<T>,
+        renderer: RawRenderer,
         // window must be last, otherwise segfault at exit
         window: Arc<winit::window::Window>,
     },
@@ -58,10 +55,7 @@ impl<T: Core> Engine<T> {
             core,
             fps: 0,
             tps: 0,
-            tps_requested: tps,
             title: title.to_owned(),
-            // buffer: [Arc::new(buffer[0]), Arc::new(buffer[1])],
-            // active: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -93,10 +87,8 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
             let window = Arc::new(window);
             let inner_size = window.inner_size();
             let (width, height) = (inner_size.width, inner_size.height);
-            let renderer = pollster::block_on(async {
-                ThreadRenderer::new(window.clone(), width, height, self.tps_requested, T::render)
-                    .await
-            });
+            let renderer =
+                pollster::block_on(async { RawRenderer::new(window.clone(), width, height).await });
 
             self.state = State::Initialized { renderer, window };
         }
@@ -166,10 +158,15 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
                     self.tps += 1;
 
                     core.input(input);
-                    let data = core.update();
+
+                    core.update();
                     input.update();
-                    renderer.submit(data);
                 }
+
+                let alpha = self.accumulator.as_secs_f32() / self.timestep.as_secs_f32();
+                let mut renderer = renderer.begin();
+
+                core.render(&mut renderer, alpha);
 
                 self.fps += 1;
 
@@ -189,6 +186,6 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
             _ => (),
         }
 
-        // window.request_redraw();
+        window.request_redraw();
     }
 }
