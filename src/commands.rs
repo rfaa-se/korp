@@ -1,28 +1,38 @@
 use korp_math::{Flint, Vec2};
 
-use crate::ecs::{components::Components, entities::Entity, forge::Forge};
+use crate::{
+    bus::{Bus, events::CosmosEvent},
+    ecs::{components::Components, entities::Entity, forge::Forge},
+};
 
+#[derive(Debug, Clone)]
 pub enum Command {
     Accelerate(Entity),
     Decelerate(Entity),
     TurnLeft(Entity),
     TurnRight(Entity),
-    Spawn(Spawn, Vec2<Flint>),
+    Spawn {
+        kind: SpawnKind,
+        centroid: Vec2<Flint>,
+    },
 }
 
-pub enum Spawn {
+#[derive(Debug, Clone)]
+pub enum SpawnKind {
     Triangle,
     Rectangle,
 }
 
 impl Command {
-    pub fn execute(&self, components: &mut Components, forge: &mut Forge) {
+    pub fn execute(&self, components: &mut Components, forge: &mut Forge, bus: &mut Bus) {
         match self {
             Command::Accelerate(entity) => handle_accelerate(entity, components),
             Command::Decelerate(entity) => handle_decelerate(entity, components),
             Command::TurnLeft(entity) => handle_turn_left(entity, components),
             Command::TurnRight(entity) => handle_turn_right(entity, components),
-            Command::Spawn(spawn, centroid) => handle_spawn(spawn, centroid, components, forge),
+            Command::Spawn { kind, centroid } => {
+                handle_spawn(kind, centroid, components, forge, bus)
+            }
         }
     }
 }
@@ -66,17 +76,16 @@ fn handle_turn_right(entity: &Entity, components: &mut Components) {
 }
 
 fn handle_spawn(
-    spawn: &Spawn,
+    kind: &SpawnKind,
     centroid: &Vec2<Flint>,
     components: &mut Components,
     forge: &mut Forge,
+    bus: &mut Bus,
 ) {
-    match spawn {
-        Spawn::Triangle => {
-            forge.triangle(*centroid, components);
-        }
-        Spawn::Rectangle => {
-            forge.rectangle(*centroid, components);
-        }
-    }
+    let entity = match kind {
+        SpawnKind::Triangle => forge.triangle(*centroid, components),
+        SpawnKind::Rectangle => forge.rectangle(*centroid, components),
+    };
+
+    bus.send(CosmosEvent::Spawned(entity));
 }

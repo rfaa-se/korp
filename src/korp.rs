@@ -9,12 +9,21 @@ use korp_engine::{
 use korp_math::{Flint, Vec2, lerp};
 
 use crate::{
-    commands::{Command, Spawn},
+    bus::{
+        Bus,
+        events::{self, CosmosEvent, CosmosRequest, Event, KernelEvent},
+    },
+    commands::{Command, SpawnKind},
+    constellation::Constellation,
     ecs::{cosmos::Cosmos, entities::Entity},
 };
 
 pub struct Korp {
-    cosmos: Cosmos,
+    constellation: Constellation,
+    bus: Bus,
+}
+
+pub struct Kernel {
     key_bindings: KeyBindings,
     commands: Vec<Command>,
     actions: Vec<Action>,
@@ -37,12 +46,12 @@ struct KeyBindings {
 enum Action {
     Toggle,
     Command(Command),
+    Init,
 }
 
-impl Korp {
+impl Kernel {
     pub fn new() -> Self {
         Self {
-            cosmos: Cosmos::new(),
             key_bindings: KeyBindings::new(),
             commands: Vec::new(),
             actions: Vec::new(),
@@ -56,12 +65,8 @@ impl Korp {
             },
         }
     }
-}
 
-impl Core for Korp {
-    fn update(&mut self) {
-        self.commands.clear();
-
+    pub fn update(&mut self, bus: &mut Bus) {
         while let Some(action) = self.actions.pop() {
             match action {
                 Action::Toggle => {
@@ -70,46 +75,75 @@ impl Core for Korp {
                 Action::Command(command) => {
                     self.commands.push(command);
                 }
+                Action::Init => {
+                    bus.send(CosmosRequest::TrackMovement(self.player_id));
+                    bus.send(CosmosRequest::TrackDeath(self.player_id));
+                }
             }
         }
 
-        self.cosmos.update(&self.commands);
+        bus.send(CosmosRequest::Commands(std::mem::take(&mut self.commands)));
+    }
 
-        // make sure the camera tracks the player
-        if let Some(body) = self.cosmos.components.logic.bodies.get(&self.player_id) {
-            self.camera_target.old = body.old.centroid.into();
-            self.camera_target.new = body.new.centroid.into();
-        } else {
+    pub fn event(&mut self, event: &Event) {
+        if let Event::Cosmos(events::Cosmos::Event(CosmosEvent::TrackedMovement {
+            entity,
+            centroid,
+        })) = event
+        {
+            // make sure the camera tracks the player
+            if *entity == self.player_id {
+                self.camera_target.old = self.camera_target.new;
+                self.camera_target.new = (*centroid).into();
+            }
+        }
+
+        if let Event::Cosmos(events::Cosmos::Event(CosmosEvent::TrackedDeath(entity))) = event {
             // when player is dead, set the new value as the old to prevent wobbling
-            // TODO: listen to when player dies and set the camera target then, once
-            self.camera_target.old = self.camera_target.new;
+            if *entity == self.player_id {
+                self.camera_target.old = self.camera_target.new;
+            }
+        }
+
+        let Event::Kernel(events::Kernel::Event(event)) = event else {
+            return;
+        };
+
+        match event {
+            KernelEvent::Resized { width, height } => {
+                self.camera.resize(*width, *height);
+            }
+            KernelEvent::Init => {
+                self.actions.push(Action::Init);
+            }
+            _ => return,
         }
     }
 
-    fn input(&mut self, input: &Input) {
+    pub fn input(&mut self, input: &Input, cosmos: &Cosmos) {
         if input.down(&self.key_bindings.up) {
-            for (entity, _) in self.cosmos.components.logic.motions.iter() {
+            for (entity, _) in cosmos.components.logic.motions.iter() {
                 self.actions
                     .push(Action::Command(Command::Accelerate(*entity)));
             }
         }
 
         if input.down(&self.key_bindings.down) {
-            for (entity, _) in self.cosmos.components.logic.motions.iter() {
+            for (entity, _) in cosmos.components.logic.motions.iter() {
                 self.actions
                     .push(Action::Command(Command::Decelerate(*entity)));
             }
         }
 
         if input.down(&self.key_bindings.left) {
-            for (entity, _) in self.cosmos.components.logic.motions.iter() {
+            for (entity, _) in cosmos.components.logic.motions.iter() {
                 self.actions
                     .push(Action::Command(Command::TurnLeft(*entity)));
             }
         }
 
         if input.down(&self.key_bindings.right) {
-            for (entity, _) in self.cosmos.components.logic.motions.iter() {
+            for (entity, _) in cosmos.components.logic.motions.iter() {
                 self.actions
                     .push(Action::Command(Command::TurnRight(*entity)));
             }
@@ -120,31 +154,27 @@ impl Core for Korp {
         }
 
         if input.is_pressed(&self.key_bindings.triangle) {
-            self.actions.push(Action::Command(Command::Spawn(
-                Spawn::Triangle,
-                Vec2::new(
+            self.actions.push(Action::Command(Command::Spawn {
+                kind: SpawnKind::Triangle,
+                centroid: Vec2::new(
                     Flint::from_i16(input.mouse.x as i16),
                     Flint::from_i16(input.mouse.y as i16),
                 ),
-            )));
+            }));
         }
 
         if input.is_pressed(&self.key_bindings.rectangle) {
-            self.actions.push(Action::Command(Command::Spawn(
-                Spawn::Rectangle,
-                Vec2::new(
+            self.actions.push(Action::Command(Command::Spawn {
+                kind: SpawnKind::Rectangle,
+                centroid: Vec2::new(
                     Flint::from_i16(input.mouse.x as i16),
                     Flint::from_i16(input.mouse.y as i16),
                 ),
-            )));
+            }));
         }
     }
 
-    fn resize(&mut self, width: u32, height: u32) {
-        self.camera.resize(width as f32, height as f32);
-    }
-
-    fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
+    pub fn render(&mut self, cosmos: &Cosmos, renderer: &mut Renderer, alpha: f32) {
         {
             self.camera.reposition(Vec2::new(
                 lerp(self.camera_target.old.x, self.camera_target.new.x, alpha),
@@ -153,7 +183,7 @@ impl Core for Korp {
 
             // render cosmos using the camera
             let scope = renderer.begin(&self.camera);
-            self.cosmos.render(scope.renderer, self.toggle, alpha);
+            cosmos.render(scope.renderer, self.toggle, alpha);
         }
 
         // render ui
@@ -163,6 +193,45 @@ impl Core for Korp {
             Vec2::new(400.0, 540.0),
             Color::GREEN,
         );
+    }
+}
+
+impl Korp {
+    pub fn new() -> Self {
+        Self {
+            constellation: Constellation::new(),
+            bus: Bus::new(),
+        }
+    }
+}
+
+impl Core for Korp {
+    fn update(&mut self) {
+        self.bus.update(&mut self.constellation);
+        self.constellation.update(&mut self.bus);
+    }
+
+    fn input(&mut self, input: &Input) {
+        self.constellation.input(input);
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        self.bus.send(KernelEvent::Resized {
+            width: width as f32,
+            height: height as f32,
+        });
+    }
+
+    fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
+        self.constellation.render(renderer, alpha);
+    }
+
+    fn init(&mut self) {
+        self.bus.send(KernelEvent::Init);
+    }
+
+    fn exit(&mut self) {
+        self.bus.send(KernelEvent::Exit);
     }
 }
 

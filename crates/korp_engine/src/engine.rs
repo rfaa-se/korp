@@ -13,8 +13,8 @@ pub trait Core {
     fn input(&mut self, input: &Input);
     fn resize(&mut self, width: u32, height: u32);
     fn render(&mut self, renderer: &mut Renderer, alpha: f32);
-    // fn init(&mut self);
-    // fn exit(&mut self);
+    fn init(&mut self);
+    fn exit(&mut self);
 }
 
 pub struct Engine<T: Core> {
@@ -65,8 +65,10 @@ impl<T: Core> Engine<T> {
             Err(e) => panic!("could not create event loop: {}", e),
         };
 
+        self.core.init();
+
         match event_loop.run_app(self) {
-            Ok(_) => (),
+            Ok(_) => {}
             Err(e) => panic!("could not run app: {}", e),
         }
     }
@@ -106,6 +108,7 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
 
         match event {
             winit::event::WindowEvent::CloseRequested => {
+                self.core.exit();
                 event_loop.exit();
             }
             winit::event::WindowEvent::CursorMoved { position, .. } => {

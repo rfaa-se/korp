@@ -3,6 +3,7 @@ use korp_math::{Flint, Vec2};
 
 use crate::ecs::{
     components::{Body, Components, Rectangle, Shape, Triangle, traits::Hitboxable},
+    entities::Entity,
     forge::Forge,
 };
 
@@ -141,16 +142,15 @@ pub fn out_of_bounds(
     bounds: &EngineRectangle<Flint>,
     forge: &mut Forge,
     components: &mut Components,
+    dead: &mut Vec<Entity>,
 ) {
-    let mut dead = Vec::new();
-
     for (&entity, hitbox) in components.logic.hitboxes.iter() {
         if !bounds.overlaps(hitbox) {
             dead.push(entity);
         }
     }
 
-    for entity in dead {
-        forge.destroy(entity, components);
+    for entity in dead.iter() {
+        forge.destroy(*entity, components);
     }
 }

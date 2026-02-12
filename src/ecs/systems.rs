@@ -1,7 +1,4 @@
-use crate::{
-    commands::Command,
-    ecs::{components::Components, forge::Forge},
-};
+use crate::ecs::{components::Components, entities::Entity, forge::Forge};
 use korp_engine::{renderer::Renderer, shapes::Rectangle};
 use korp_math::Flint;
 
@@ -21,15 +18,14 @@ impl Executor {
         components: &mut Components,
         forge: &mut Forge,
         bounds: &Rectangle<Flint>,
-        commands: &[Command],
+        dead: &mut Vec<Entity>,
     ) {
         use physics::*;
 
         morph_body(components);
-        execute_commands(components, forge, commands);
         motion(components);
         hitbox(components);
-        out_of_bounds(bounds, forge, components);
+        out_of_bounds(bounds, forge, components, dead);
 
         morph_body_render(components);
         morph_hitbox_render(components);
@@ -56,11 +52,5 @@ impl Observer {
         cosmos(bounds, renderer);
         body(components, renderer, toggle, alpha);
         hitbox(components, renderer, alpha);
-    }
-}
-
-pub fn execute_commands(components: &mut Components, forge: &mut Forge, commands: &[Command]) {
-    for command in commands {
-        command.execute(components, forge);
     }
 }
