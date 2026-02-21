@@ -1,39 +1,23 @@
-use korp_engine::{input::Input, renderer::Renderer};
-
-use crate::{
-    bus::{Bus, events::Event},
-    ecs::cosmos::Cosmos,
-    korp::Kernel,
-};
+use crate::{bus::Bus, ecs::cosmos::Cosmos, network::Network, nexus::Nexus};
 
 pub struct Constellation {
-    pub kernel: Kernel,
+    pub nexus: Nexus,
     pub cosmos: Cosmos,
+    pub network: Network,
 }
 
 impl Constellation {
     pub fn new() -> Self {
         Self {
-            kernel: Kernel::new(),
+            nexus: Nexus::new(),
             cosmos: Cosmos::new(),
+            network: Network::new(),
         }
     }
 
     pub fn update(&mut self, bus: &mut Bus) {
-        self.kernel.update(bus);
+        self.nexus.update(bus);
+        self.network.update(bus);
         self.cosmos.update(bus);
-    }
-
-    pub fn event(&mut self, event: &Event) {
-        self.kernel.event(event);
-        self.cosmos.event(event);
-    }
-
-    pub fn input(&mut self, input: &Input) {
-        self.kernel.input(input, &self.cosmos);
-    }
-
-    pub fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
-        self.kernel.render(&self.cosmos, renderer, alpha);
     }
 }

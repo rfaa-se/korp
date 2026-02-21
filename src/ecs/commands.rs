@@ -12,12 +12,13 @@ pub enum Command {
     TurnLeft(Entity),
     TurnRight(Entity),
     Spawn {
+        id: Option<usize>,
         kind: SpawnKind,
         centroid: Vec2<Flint>,
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum SpawnKind {
     Triangle,
     Rectangle,
@@ -30,8 +31,8 @@ impl Command {
             Command::Decelerate(entity) => handle_decelerate(entity, components),
             Command::TurnLeft(entity) => handle_turn_left(entity, components),
             Command::TurnRight(entity) => handle_turn_right(entity, components),
-            Command::Spawn { kind, centroid } => {
-                handle_spawn(kind, centroid, components, forge, bus)
+            Command::Spawn { id, kind, centroid } => {
+                handle_spawn(id, kind, centroid, components, forge, bus)
             }
         }
     }
@@ -76,6 +77,7 @@ fn handle_turn_right(entity: &Entity, components: &mut Components) {
 }
 
 fn handle_spawn(
+    id: &Option<usize>,
     kind: &SpawnKind,
     centroid: &Vec2<Flint>,
     components: &mut Components,
@@ -87,5 +89,5 @@ fn handle_spawn(
         SpawnKind::Rectangle => forge.rectangle(*centroid, components),
     };
 
-    bus.send(CosmosEvent::Spawned(entity));
+    bus.send(CosmosEvent::Spawned { id: *id, entity });
 }

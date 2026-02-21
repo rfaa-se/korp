@@ -1,6 +1,7 @@
 use crate::{
-    bus::events::{Cosmos, CosmosRequest, Event},
-    constellation::Constellation,
+    bus::events::{Cosmos, CosmosIntent, Event},
+    network::Network,
+    nexus::Nexus,
 };
 
 pub mod events;
@@ -14,11 +15,12 @@ impl Bus {
         Self { events: Vec::new() }
     }
 
-    pub fn update(&mut self, constellation: &mut Constellation) {
+    pub fn update(&mut self, nexus: &mut Nexus, network: &mut Network) {
         for event in self.events.iter() {
-            constellation.event(event);
+            nexus.event(event);
+            network.event(event);
 
-            if let Event::Cosmos(Cosmos::Request(CosmosRequest::Commands(_))) = event {
+            if let Event::Cosmos(Cosmos::Intent(CosmosIntent::PlayerCommands { .. })) = event {
                 continue;
             }
 

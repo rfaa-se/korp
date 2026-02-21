@@ -4,10 +4,10 @@ use korp_math::Flint;
 use crate::{
     bus::{
         Bus,
-        events::{self, CosmosEvent, CosmosRequest, Event},
+        events::{self, CosmosEvent, CosmosIntent, Event},
     },
-    commands::Command,
     ecs::{
+        commands::Command,
         components::Components,
         entities::Entity,
         forge::Forge,
@@ -16,15 +16,17 @@ use crate::{
 };
 
 pub struct Cosmos {
-    pub components: Components,
+    components: Components,
     forge: Forge,
     executor: Executor,
     observer: Observer,
     bounds: Rectangle<Flint>,
-    commands: Vec<Command>,
+    player_commands: Vec<Command>,
+    cosmos_commands: Vec<Command>,
     tracked_death: Vec<Entity>,
     tracked_movement: Vec<Entity>,
     dead: Vec<Entity>,
+    tick: usize,
 }
 
 impl Cosmos {
@@ -40,17 +42,17 @@ impl Cosmos {
                 width: Flint::new(700, 0),
                 height: Flint::new(400, 0),
             },
-            commands: Vec::new(),
+            player_commands: Vec::new(),
+            cosmos_commands: Vec::new(),
             tracked_death: Vec::new(),
             tracked_movement: Vec::new(),
             dead: Vec::new(),
+            tick: 0,
         }
     }
 
     pub fn update(&mut self, bus: &mut Bus) {
-        for command in self.commands.iter() {
-            command.execute(&mut self.components, &mut self.forge, bus);
-        }
+        self.execute_commands(bus);
 
         self.executor.execute(
             &mut self.components,
@@ -59,6 +61,48 @@ impl Cosmos {
             &mut self.dead,
         );
 
+        self.send_events(bus);
+
+        self.tick += 1;
+    }
+
+    pub fn render(&self, renderer: &mut Renderer, toggle: bool, alpha: f32) {
+        self.observer
+            .observe(&self.components, renderer, &self.bounds, toggle, alpha);
+    }
+
+    pub fn event(&mut self, event: &Event) {
+        let Event::Cosmos(events::Cosmos::Intent(event)) = event else {
+            return;
+        };
+
+        match event {
+            CosmosIntent::PlayerCommands { id, commands, tick } => {
+                self.player_commands = commands.clone()
+            }
+            CosmosIntent::TrackDeath(entity) => self.tracked_death.push(*entity),
+            CosmosIntent::TrackMovement(entity) => self.tracked_movement.push(*entity),
+            CosmosIntent::Spawn { id, kind, centroid } => {
+                self.cosmos_commands.push(Command::Spawn {
+                    id: *id,
+                    kind: *kind,
+                    centroid: *centroid,
+                })
+            }
+        }
+    }
+
+    fn execute_commands(&mut self, bus: &mut Bus) {
+        for command in self.cosmos_commands.iter() {
+            command.execute(&mut self.components, &mut self.forge, bus);
+        }
+
+        for command in self.player_commands.iter() {
+            command.execute(&mut self.components, &mut self.forge, bus);
+        }
+    }
+
+    fn send_events(&mut self, bus: &mut Bus) {
         for entity in self.dead.drain(..) {
             bus.send(CosmosEvent::Died(entity));
 
@@ -79,24 +123,6 @@ impl Cosmos {
                     centroid: body.new.centroid,
                 });
             }
-        }
-    }
-
-    pub fn render(&self, renderer: &mut Renderer, toggle: bool, alpha: f32) {
-        self.observer
-            .observe(&self.components, renderer, &self.bounds, toggle, alpha);
-    }
-
-    pub fn event(&mut self, event: &Event) {
-        let Event::Cosmos(events::Cosmos::Request(event)) = event else {
-            return;
-        };
-
-        match event {
-            CosmosRequest::Commands(commands) => self.commands = commands.clone(),
-            CosmosRequest::TrackDeath(entity) => self.tracked_death.push(*entity),
-            CosmosRequest::TrackMovement(entity) => self.tracked_movement.push(*entity),
-            _ => return,
         }
     }
 }

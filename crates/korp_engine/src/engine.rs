@@ -11,10 +11,13 @@ use crate::{input::Input, renderer::RawRenderer};
 pub trait Core {
     fn update(&mut self);
     fn input(&mut self, input: &Input);
-    fn resize(&mut self, width: u32, height: u32);
     fn render(&mut self, renderer: &mut Renderer, alpha: f32);
-    fn init(&mut self);
-    fn exit(&mut self);
+    fn event(&mut self, event: &CoreEvent);
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum CoreEvent {
+    Resize { width: u32, height: u32 },
 }
 
 pub struct Engine<T: Core> {
@@ -65,8 +68,6 @@ impl<T: Core> Engine<T> {
             Err(e) => panic!("could not create event loop: {}", e),
         };
 
-        self.core.init();
-
         match event_loop.run_app(self) {
             Ok(_) => {}
             Err(e) => panic!("could not run app: {}", e),
@@ -108,7 +109,6 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
 
         match event {
             winit::event::WindowEvent::CloseRequested => {
-                self.core.exit();
                 event_loop.exit();
             }
             winit::event::WindowEvent::CursorMoved { position, .. } => {
@@ -143,7 +143,10 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
 
                 renderer.resize(w, h);
 
-                self.core.resize(w, h);
+                self.core.event(&CoreEvent::Resize {
+                    width: w,
+                    height: h,
+                });
             }
             winit::event::WindowEvent::RedrawRequested => {
                 let now = Instant::now();

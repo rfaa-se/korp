@@ -1,31 +1,41 @@
 use std::net::IpAddr;
 
+use korp_engine::CoreEvent as Core;
 use korp_math::{Flint, Vec2};
 
 use crate::{
-    commands::{Command, SpawnKind},
-    ecs::entities::Entity,
+    ecs::{
+        commands::{Command, SpawnKind},
+        entities::Entity,
+    },
+    nexus::NexusState,
 };
 
 #[derive(Debug)]
 pub enum Event {
     Cosmos(Cosmos),
-    Kernel(Kernel),
     Network(Network),
+    Core(Core),
+    Nexus(Nexus),
 }
 
 #[derive(Debug)]
 pub enum Cosmos {
-    Request(CosmosRequest),
+    Intent(CosmosIntent),
     Event(CosmosEvent),
 }
 
 #[derive(Debug)]
-pub enum CosmosRequest {
-    Commands(Vec<Command>),
+pub enum CosmosIntent {
+    PlayerCommands {
+        id: usize,
+        tick: usize,
+        commands: Vec<Command>,
+    },
     Spawn {
+        id: Option<usize>,
         kind: SpawnKind,
-        position: Vec2<Flint>,
+        centroid: Vec2<Flint>,
     },
     TrackDeath(Entity),
     TrackMovement(Entity),
@@ -33,7 +43,10 @@ pub enum CosmosRequest {
 
 #[derive(Debug)]
 pub enum CosmosEvent {
-    Spawned(Entity),
+    Spawned {
+        id: Option<usize>,
+        entity: Entity,
+    },
     Died(Entity),
     TrackedDeath(Entity),
     TrackedMovement {
@@ -43,37 +56,53 @@ pub enum CosmosEvent {
 }
 
 #[derive(Debug)]
-pub enum Kernel {
-    Event(KernelEvent),
-}
-
-#[derive(Debug)]
-pub enum KernelEvent {
-    Init,
-    Exit,
-    Resized { width: f32, height: f32 },
-}
-
-#[derive(Debug)]
 pub enum Network {
-    Request(NetworkRequest),
-    Response(NetworkResponse),
+    Intent(NetworkIntent),
     Event(NetworkEvent),
 }
 
 #[derive(Debug)]
-pub enum NetworkRequest {
+pub enum NetworkIntent {
+    Host,
     Connect(IpAddr),
-}
-
-#[derive(Debug)]
-pub enum NetworkResponse {
-    Connected,
+    Disconnect,
+    Launch,
+    Commands { tick: usize, commands: Vec<Command> },
 }
 
 #[derive(Debug)]
 pub enum NetworkEvent {
-    Connected(IpAddr),
+    Hosted {
+        id: usize,
+    },
+    Connected {
+        id: usize,
+    },
+    Launched,
+    Disconnected {
+        id: usize,
+    },
+    Commands {
+        id: usize,
+        tick: usize,
+        commands: Vec<Command>,
+    },
+}
+
+#[derive(Debug)]
+pub enum Nexus {
+    Intent(NexusIntent),
+    Event(NexusEvent),
+}
+
+#[derive(Debug)]
+pub enum NexusIntent {
+    Transition(NexusState),
+}
+
+#[derive(Debug)]
+pub enum NexusEvent {
+    Transitioned(NexusState),
 }
 
 impl From<Cosmos> for Event {
@@ -94,26 +123,50 @@ impl From<CosmosEvent> for Event {
     }
 }
 
-impl From<CosmosRequest> for Cosmos {
-    fn from(value: CosmosRequest) -> Self {
-        Cosmos::Request(value)
+impl From<CosmosIntent> for Cosmos {
+    fn from(value: CosmosIntent) -> Self {
+        Cosmos::Intent(value)
     }
 }
 
-impl From<CosmosRequest> for Event {
-    fn from(value: CosmosRequest) -> Self {
-        Cosmos::Request(value).into()
+impl From<CosmosIntent> for Event {
+    fn from(value: CosmosIntent) -> Self {
+        Cosmos::Intent(value).into()
     }
 }
 
-impl From<Kernel> for Event {
-    fn from(value: Kernel) -> Self {
-        Event::Kernel(value)
+impl From<Network> for Event {
+    fn from(value: Network) -> Self {
+        Event::Network(value)
     }
 }
 
-impl From<KernelEvent> for Event {
-    fn from(value: KernelEvent) -> Self {
-        Kernel::Event(value).into()
+impl From<NetworkResponse> for Network {
+    fn from(value: NetworkResponse) -> Self {
+        Network::Response(value)
+    }
+}
+
+impl From<NetworkResponse> for Event {
+    fn from(value: NetworkResponse) -> Self {
+        Network::Response(value).into()
+    }
+}
+
+impl From<NetworkIntent> for Network {
+    fn from(value: NetworkIntent) -> Self {
+        Network::Intent(value)
+    }
+}
+
+impl From<NetworkIntent> for Event {
+    fn from(value: NetworkIntent) -> Self {
+        Network::Intent(value).into()
+    }
+}
+
+impl From<NetworkEvent> for Event {
+    fn from(value: NetworkEvent) -> Self {
+        Network::Event(value).into()
     }
 }
