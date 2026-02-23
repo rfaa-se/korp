@@ -1,5 +1,5 @@
 use crate::{
-    bus::events::{Cosmos, CosmosIntent, Event},
+    bus::events::{Cosmos, Event},
     network::Network,
     nexus::Nexus,
 };
@@ -19,10 +19,6 @@ impl Bus {
         for event in self.events.iter() {
             nexus.event(event);
             network.event(event);
-
-            if let Event::Cosmos(Cosmos::Intent(CosmosIntent::PlayerCommands { .. })) = event {
-                continue;
-            }
 
             if let Event::Cosmos(Cosmos::Event(events::CosmosEvent::TrackedMovement {
                 entity: _,

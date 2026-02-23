@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use crate::{
     bus::{
         Bus,
-        events::{self, Event, NetworkEvent, NetworkIntent, NetworkResponse},
+        events::{self, Event, NetworkEvent, NetworkIntent},
     },
     ecs::commands::Command,
 };
@@ -13,17 +13,12 @@ pub struct Network {
     id: usize,
 }
 
-pub enum Network2 {
-    Void,
-    Server,
-    Client,
-}
-
 enum Action {
     Host,
     Connect(IpAddr),
     Disconnect,
     Commands { tick: usize, commands: Vec<Command> },
+    Launch,
 }
 
 // TODO: this whole implementation is basically a stub
@@ -39,10 +34,10 @@ impl Network {
         while let Some(action) = self.actions.pop() {
             match action {
                 Action::Host => {
-                    bus.send(NetworkResponse::Hosted);
+                    bus.send(NetworkEvent::Hosted { id: self.id });
                 }
-                Action::Connect(ip) => {
-                    bus.send(NetworkResponse::Connected { ip, id: self.id });
+                Action::Connect(_ip) => {
+                    bus.send(NetworkEvent::Connected { id: self.id });
                 }
                 Action::Disconnect => {
                     bus.send(NetworkEvent::Disconnected { id: self.id });
@@ -53,6 +48,9 @@ impl Network {
                         tick,
                         commands,
                     });
+                }
+                Action::Launch => {
+                    bus.send(NetworkEvent::Launched);
                 }
             }
         }
@@ -76,6 +74,9 @@ impl Network {
             }
             NetworkIntent::Disconnect => {
                 self.actions.push(Action::Disconnect);
+            }
+            NetworkIntent::Launch => {
+                self.actions.push(Action::Launch);
             }
         }
     }

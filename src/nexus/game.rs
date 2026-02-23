@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use korp_engine::{
     color::Color,
     input::{Input, KeyCode},
@@ -5,15 +7,25 @@ use korp_engine::{
     renderer::{Camera, Renderer},
     shapes::Rectangle,
 };
-use korp_math::{Vec2, lerp};
+use korp_math::{Flint, Vec2, lerp};
 
 use crate::{
-    bus::{Bus, events::Event},
-    ecs::cosmos::Cosmos,
+    bus::{
+        Bus,
+        events::{self, CosmosEvent, CosmosIntent, Event, Network, NetworkEvent, NetworkIntent},
+    },
+    ecs::{
+        commands::{Command, SpawnKind},
+        cosmos::Cosmos,
+        entities::Entity,
+    },
 };
 
 pub struct Game {
     id: usize,
+    pid: Option<Entity>,
+    ids: Vec<usize>,
+    seed: u64,
     cosmos: Cosmos,
     camera: Camera,
     camera_target: Morph<Vec2<f32>>,
@@ -21,6 +33,9 @@ pub struct Game {
     keybindings: KeyBindings,
     state: State,
     actions: Vec<Action>,
+    commands: Vec<Vec<Vec<Command>>>,
+    tick: usize,
+    id_idx: HashMap<usize, usize>,
 }
 
 struct KeyBindings {
@@ -36,15 +51,39 @@ struct KeyBindings {
 enum State {
     Running,
     Paused,
+    Stalling,
 }
 
-enum Action {}
+enum Action {
+    Transition(State),
+    Toggle,
+    Command(Command),
+}
 
 impl Game {
-    pub fn new(id: usize) -> Self {
+    pub fn new(id: usize, ids: Vec<usize>, seed: u64) -> Self {
+        let mut cosmos = Cosmos::new();
+        let mut id_idx = HashMap::new();
+
+        for (idx, id) in ids.iter().enumerate() {
+            cosmos.event(
+                &(CosmosIntent::Spawn {
+                    id: Some(*id),
+                    kind: SpawnKind::Triangle,
+                    centroid: Vec2::new(Flint::ZERO, Flint::ZERO),
+                }
+                .into()),
+            );
+
+            id_idx.insert(*id, idx);
+        }
+
         Self {
             id,
-            cosmos: Cosmos::new(),
+            pid: None,
+            ids,
+            seed,
+            cosmos,
             camera: Camera::new(1000.0, 1000.0),
             camera_target: Morph::one(Vec2::new(0.0, 0.0)),
             toggle: false,
@@ -59,19 +98,73 @@ impl Game {
             },
             state: State::Running,
             actions: Vec::new(),
+            commands: Vec::with_capacity(1024),
+            tick: 0,
+            id_idx,
         }
     }
 
     pub fn update(&mut self, bus: &mut Bus) {
+        self.prepare();
+        self.action(bus);
+
         let State::Running = self.state else {
             return;
         };
+
+        self.cosmos.update(bus, &self.commands[self.tick]);
     }
 
     pub fn input(&mut self, input: &Input) {
         let State::Running = self.state else {
             return;
         };
+
+        if input.is_pressed(&self.keybindings.toggle) {
+            self.actions.push(Action::Toggle);
+        }
+
+        if input.is_pressed(&self.keybindings.triangle) {
+            self.actions.push(Action::Command(Command::Spawn {
+                id: None,
+                kind: SpawnKind::Triangle,
+                centroid: Vec2::new(
+                    Flint::from_i16(input.mouse.x as i16),
+                    Flint::from_i16(input.mouse.y as i16),
+                ),
+            }));
+        }
+
+        if input.is_pressed(&self.keybindings.rectangle) {
+            self.actions.push(Action::Command(Command::Spawn {
+                id: None,
+                kind: SpawnKind::Rectangle,
+                centroid: Vec2::new(
+                    Flint::from_i16(input.mouse.x as i16),
+                    Flint::from_i16(input.mouse.y as i16),
+                ),
+            }));
+        }
+
+        let Some(pid) = self.pid else {
+            return;
+        };
+
+        if input.is_down(&self.keybindings.up) {
+            self.actions.push(Action::Command(Command::Accelerate(pid)));
+        }
+
+        if input.is_down(&self.keybindings.down) {
+            self.actions.push(Action::Command(Command::Decelerate(pid)));
+        }
+
+        if input.is_down(&self.keybindings.left) {
+            self.actions.push(Action::Command(Command::TurnLeft(pid)));
+        }
+
+        if input.is_down(&self.keybindings.right) {
+            self.actions.push(Action::Command(Command::TurnRight(pid)));
+        }
     }
 
     pub fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
@@ -97,5 +190,111 @@ impl Game {
 
     pub fn event(&mut self, event: &Event) {
         self.cosmos.event(event);
+
+        if let Event::Network(Network::Event(NetworkEvent::Commands { id, tick, commands })) = event
+        {
+            self.commands(id, tick, commands);
+            return;
+        }
+
+        let Event::Cosmos(events::Cosmos::Event(event)) = event else {
+            return;
+        };
+
+        match event {
+            CosmosEvent::Spawned {
+                id: Some(id),
+                entity,
+            } if *id == self.id => {
+                self.pid = Some(*entity);
+                self.cosmos
+                    .event(&(CosmosIntent::TrackDeath(*entity).into()));
+                self.cosmos
+                    .event(&(CosmosIntent::TrackMovement(*entity).into()));
+            }
+            CosmosEvent::TrackedDeath(entity) if Some(*entity) == self.pid => {
+                // when player is dead, set the new as the old to prevent wobbling
+                self.pid = None;
+                self.camera_target.old = self.camera_target.new;
+            }
+            CosmosEvent::TrackedMovement { entity, centroid } if Some(*entity) == self.pid => {
+                self.camera_target.old = self.camera_target.new;
+                self.camera_target.new = (*centroid).into();
+            }
+            _ => return,
+        }
+    }
+
+    fn action(&mut self, bus: &mut Bus) {
+        let mut commands = Vec::new();
+
+        while let Some(action) = self.actions.pop() {
+            match action {
+                Action::Transition(state) => {
+                    self.state = state;
+                }
+                Action::Toggle => {
+                    self.toggle = !self.toggle;
+                }
+                Action::Command(command) => {
+                    commands.push(command);
+                }
+            }
+        }
+
+        let State::Running = self.state else {
+            // re-enqueue the commands
+            while let Some(command) = commands.pop() {
+                self.actions.push(Action::Command(command));
+            }
+
+            return;
+        };
+
+        bus.send(NetworkIntent::Commands {
+            tick: self.id + 2,
+            commands,
+        });
+    }
+
+    fn commands(&mut self, id: &usize, tick: &usize, commands: &[Command]) {
+        if self.commands.len() < *tick {
+            self.commands
+                .resize(self.commands.len() * 2, Vec::with_capacity(self.ids.len()));
+        }
+
+        let tick_commands = &mut self.commands[*tick];
+        let idx = self.id_idx[id];
+
+        tick_commands[idx] = Vec::from(commands);
+    }
+
+    fn prepare(&mut self) {
+        // ensure we have received all commands, otherwise stall
+        if self.commands.len() <= self.tick {
+            let State::Stalling = self.state else {
+                self.actions.push(Action::Transition(State::Stalling));
+                return;
+            };
+
+            return;
+        }
+
+        let tick_commands = &self.commands[self.tick];
+
+        if tick_commands.len() < self.ids.len() {
+            let State::Stalling = self.state else {
+                self.actions.push(Action::Transition(State::Stalling));
+                return;
+            };
+
+            return;
+        }
+
+        let State::Stalling = self.state else {
+            return;
+        };
+
+        self.actions.push(Action::Transition(State::Running));
     }
 }

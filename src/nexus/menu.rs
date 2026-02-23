@@ -30,9 +30,11 @@ enum State {
     Host,
     HostAwait,
     Hosted { id: usize },
+    HostedAwait,
     Connect,
     ConnectAwait,
     Connected { id: usize },
+    ConnectedAwait,
 }
 
 enum Action {
@@ -76,6 +78,16 @@ impl Menu {
                     id,
                     host: true,
                 }));
+
+                self.actions.push(Action::Transition(State::HostedAwait));
+            }
+            State::HostedAwait => {
+                self.counter += 1;
+
+                if self.counter > TIMEOUT {
+                    // TODO: something is really wrong
+                    self.actions.push(Action::Transition(State::Idle));
+                }
             }
             State::Connect => {
                 bus.send(NetworkIntent::Connect(IpAddr::V4(Ipv4Addr::LOCALHOST)));
@@ -94,6 +106,16 @@ impl Menu {
                     id,
                     host: false,
                 }));
+
+                self.actions.push(Action::Transition(State::ConnectedAwait));
+            }
+            State::ConnectedAwait => {
+                self.counter += 1;
+
+                if self.counter > TIMEOUT {
+                    // TODO: something is really wrong
+                    self.actions.push(Action::Transition(State::Idle));
+                }
             }
         }
     }

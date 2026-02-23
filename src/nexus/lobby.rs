@@ -74,7 +74,11 @@ impl Lobby {
                 }
             }
             State::Launched => {
-                bus.send(NexusIntent::Transition(NexusState::Game { id: self.id }));
+                bus.send(NexusIntent::Transition(NexusState::Game {
+                    id: self.id,
+                    ids: vec![self.id],
+                    seed: 0,
+                }));
 
                 self.actions.push(Action::Transition(State::LaunchedAwait));
             }

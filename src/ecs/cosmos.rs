@@ -21,12 +21,10 @@ pub struct Cosmos {
     executor: Executor,
     observer: Observer,
     bounds: Rectangle<Flint>,
-    player_commands: Vec<Command>,
-    cosmos_commands: Vec<Command>,
+    commands: Vec<Command>,
     tracked_death: Vec<Entity>,
     tracked_movement: Vec<Entity>,
     dead: Vec<Entity>,
-    tick: usize,
 }
 
 impl Cosmos {
@@ -42,17 +40,15 @@ impl Cosmos {
                 width: Flint::new(700, 0),
                 height: Flint::new(400, 0),
             },
-            player_commands: Vec::new(),
-            cosmos_commands: Vec::new(),
+            commands: Vec::new(),
             tracked_death: Vec::new(),
             tracked_movement: Vec::new(),
             dead: Vec::new(),
-            tick: 0,
         }
     }
 
-    pub fn update(&mut self, bus: &mut Bus) {
-        self.execute_commands(bus);
+    pub fn update(&mut self, bus: &mut Bus, commands: &[Vec<Command>]) {
+        self.execute_commands(bus, commands);
 
         self.executor.execute(
             &mut self.components,
@@ -62,8 +58,6 @@ impl Cosmos {
         );
 
         self.send_events(bus);
-
-        self.tick += 1;
     }
 
     pub fn render(&self, renderer: &mut Renderer, toggle: bool, alpha: f32) {
@@ -77,27 +71,22 @@ impl Cosmos {
         };
 
         match event {
-            CosmosIntent::PlayerCommands { id, commands, tick } => {
-                self.player_commands = commands.clone()
-            }
             CosmosIntent::TrackDeath(entity) => self.tracked_death.push(*entity),
             CosmosIntent::TrackMovement(entity) => self.tracked_movement.push(*entity),
-            CosmosIntent::Spawn { id, kind, centroid } => {
-                self.cosmos_commands.push(Command::Spawn {
-                    id: *id,
-                    kind: *kind,
-                    centroid: *centroid,
-                })
-            }
+            CosmosIntent::Spawn { id, kind, centroid } => self.commands.push(Command::Spawn {
+                id: *id,
+                kind: *kind,
+                centroid: *centroid,
+            }),
         }
     }
 
-    fn execute_commands(&mut self, bus: &mut Bus) {
-        for command in self.cosmos_commands.iter() {
+    fn execute_commands(&mut self, bus: &mut Bus, commands: &[Vec<Command>]) {
+        for command in self.commands.iter() {
             command.execute(&mut self.components, &mut self.forge, bus);
         }
 
-        for command in self.player_commands.iter() {
+        for command in commands.iter().flatten() {
             command.execute(&mut self.components, &mut self.forge, bus);
         }
     }

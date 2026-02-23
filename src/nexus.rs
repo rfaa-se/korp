@@ -17,11 +17,18 @@ pub struct Nexus {
     actions: Vec<Action>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub enum NexusState {
     Menu,
-    Lobby { id: usize, host: bool },
-    Game { id: usize },
+    Lobby {
+        id: usize,
+        host: bool,
+    },
+    Game {
+        id: usize,
+        ids: Vec<usize>,
+        seed: u64,
+    },
 }
 
 enum Action {
@@ -65,7 +72,7 @@ impl Nexus {
 
         match event {
             NexusIntent::Transition(state) => {
-                self.actions.push(Action::Transition(*state));
+                self.actions.push(Action::Transition((*state).clone()));
             }
         }
     }
@@ -90,14 +97,15 @@ impl Nexus {
         while let Some(action) = self.actions.pop() {
             match action {
                 Action::Transition(state) => {
+                    let clone = state.clone();
                     let new = match state {
                         NexusState::Menu => State::Menu(Menu::new()),
                         NexusState::Lobby { id, host } => State::Lobby(Lobby::new(id, host)),
-                        NexusState::Game { id } => State::Game(Game::new(id)),
+                        NexusState::Game { id, ids, seed } => State::Game(Game::new(id, ids, seed)),
                     };
 
                     self.state = new;
-                    bus.send(NexusEvent::Transitioned(state));
+                    bus.send(NexusEvent::Transitioned(clone));
                 }
             }
         }

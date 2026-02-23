@@ -17,6 +17,7 @@ pub enum Event {
     Network(Network),
     Core(Core),
     Nexus(Nexus),
+    // Menu(Menu),
 }
 
 #[derive(Debug)]
@@ -27,11 +28,6 @@ pub enum Cosmos {
 
 #[derive(Debug)]
 pub enum CosmosIntent {
-    PlayerCommands {
-        id: usize,
-        tick: usize,
-        commands: Vec<Command>,
-    },
     Spawn {
         id: Option<usize>,
         kind: SpawnKind,
@@ -105,6 +101,22 @@ pub enum NexusEvent {
     Transitioned(NexusState),
 }
 
+// #[derive(Debug)]
+// pub enum Menu {
+//     Intent(MenuIntent),
+//     Event(MenuEvent),
+// }
+
+// #[derive(Debug)]
+// pub enum MenuIntent {
+//     Transition(MenuState)
+// }
+
+// #[derive(Debug)]
+// pub enum MenuEvent {
+//     Transitioned(MenuState)
+// }
+
 impl From<Cosmos> for Event {
     fn from(value: Cosmos) -> Self {
         Event::Cosmos(value)
@@ -141,18 +153,6 @@ impl From<Network> for Event {
     }
 }
 
-impl From<NetworkResponse> for Network {
-    fn from(value: NetworkResponse) -> Self {
-        Network::Response(value)
-    }
-}
-
-impl From<NetworkResponse> for Event {
-    fn from(value: NetworkResponse) -> Self {
-        Network::Response(value).into()
-    }
-}
-
 impl From<NetworkIntent> for Network {
     fn from(value: NetworkIntent) -> Self {
         Network::Intent(value)
@@ -168,5 +168,23 @@ impl From<NetworkIntent> for Event {
 impl From<NetworkEvent> for Event {
     fn from(value: NetworkEvent) -> Self {
         Network::Event(value).into()
+    }
+}
+
+impl From<NexusEvent> for Event {
+    fn from(value: NexusEvent) -> Self {
+        Nexus::Event(value).into()
+    }
+}
+
+impl From<NexusIntent> for Event {
+    fn from(value: NexusIntent) -> Self {
+        Nexus::Intent(value).into()
+    }
+}
+
+impl From<Nexus> for Event {
+    fn from(value: Nexus) -> Self {
+        Event::Nexus(value)
     }
 }
