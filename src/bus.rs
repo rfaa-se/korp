@@ -20,10 +20,7 @@ impl Bus {
             nexus.event(event);
             network.event(event);
 
-            if let Event::Cosmos(Cosmos::Event(events::CosmosEvent::TrackedMovement {
-                entity: _,
-                centroid: _,
-            })) = event
+            if let Event::Cosmos(Cosmos::Event(events::CosmosEvent::TrackedMovement { .. })) = event
             {
                 continue;
             }

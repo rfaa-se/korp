@@ -12,7 +12,9 @@ use korp_math::{Flint, Vec2, lerp};
 use crate::{
     bus::{
         Bus,
-        events::{self, CosmosEvent, CosmosIntent, Event, Network, NetworkEvent, NetworkIntent},
+        events::{
+            self, CosmosEvent, CosmosIntent, Event, Internal, Network, NetworkEvent, NetworkIntent,
+        },
     },
     ecs::{
         commands::{Command, SpawnKind},
@@ -38,6 +40,20 @@ pub struct Game {
     id_idx: HashMap<usize, usize>,
 }
 
+#[derive(Debug, Clone)]
+pub enum State {
+    Running,
+    Paused,
+    Stalling,
+}
+
+#[derive(Debug, Clone)]
+pub enum Action {
+    Transition(State),
+    Toggle,
+    Command(Command),
+}
+
 struct KeyBindings {
     up: KeyCode,
     down: KeyCode,
@@ -48,31 +64,40 @@ struct KeyBindings {
     rectangle: KeyCode,
 }
 
-enum State {
-    Running,
-    Paused,
-    Stalling,
-}
-
-enum Action {
-    Transition(State),
-    Toggle,
-    Command(Command),
-}
+const TICK_DELAY: usize = 2;
 
 impl Game {
     pub fn new(id: usize, ids: Vec<usize>, seed: u64) -> Self {
-        let mut cosmos = Cosmos::new();
+        let bounds = Rectangle {
+            x: Flint::new(50, 0),
+            y: Flint::new(40, 0),
+            width: Flint::new(700, 0),
+            height: Flint::new(400, 0),
+        };
+        let spawn = Vec2::new(
+            bounds.x + bounds.width / Flint::from_i16(2),
+            bounds.y + bounds.height / Flint::from_i16(2),
+        );
+        let mut cosmos = Cosmos::new(bounds);
         let mut id_idx = HashMap::new();
+        let mut commands = Vec::with_capacity(1024);
+
+        for tick in 0..TICK_DELAY {
+            commands.push(Vec::with_capacity(ids.len()));
+
+            for _ in 0..ids.len() {
+                commands[tick].push(Vec::new());
+            }
+        }
 
         for (idx, id) in ids.iter().enumerate() {
             cosmos.event(
                 &(CosmosIntent::Spawn {
                     id: Some(*id),
                     kind: SpawnKind::Triangle,
-                    centroid: Vec2::new(Flint::ZERO, Flint::ZERO),
-                }
-                .into()),
+                    centroid: spawn,
+                })
+                .into(),
             );
 
             id_idx.insert(*id, idx);
@@ -84,7 +109,7 @@ impl Game {
             ids,
             seed,
             cosmos,
-            camera: Camera::new(1000.0, 1000.0),
+            camera: Camera::new(800.0, 600.0),
             camera_target: Morph::one(Vec2::new(0.0, 0.0)),
             toggle: false,
             keybindings: KeyBindings {
@@ -98,7 +123,7 @@ impl Game {
             },
             state: State::Running,
             actions: Vec::new(),
-            commands: Vec::with_capacity(1024),
+            commands,
             tick: 0,
             id_idx,
         }
@@ -107,12 +132,14 @@ impl Game {
     pub fn update(&mut self, bus: &mut Bus) {
         self.prepare();
         self.action(bus);
+        self.schedule();
 
         let State::Running = self.state else {
             return;
         };
 
         self.cosmos.update(bus, &self.commands[self.tick]);
+        self.tick += 1;
     }
 
     pub fn input(&mut self, input: &Input) {
@@ -211,6 +238,11 @@ impl Game {
                     .event(&(CosmosIntent::TrackDeath(*entity).into()));
                 self.cosmos
                     .event(&(CosmosIntent::TrackMovement(*entity).into()));
+
+                if let Some(body) = self.cosmos.components().logic.bodies.get(entity) {
+                    self.camera_target.old = body.old.centroid.into();
+                    self.camera_target.new = body.new.centroid.into();
+                }
             }
             CosmosEvent::TrackedDeath(entity) if Some(*entity) == self.pid => {
                 // when player is dead, set the new as the old to prevent wobbling
@@ -229,7 +261,7 @@ impl Game {
         let mut commands = Vec::new();
 
         while let Some(action) = self.actions.pop() {
-            match action {
+            match action.clone() {
                 Action::Transition(state) => {
                     self.state = state;
                 }
@@ -238,12 +270,19 @@ impl Game {
                 }
                 Action::Command(command) => {
                     commands.push(command);
+
+                    let State::Running = self.state else {
+                        continue;
+                    };
                 }
             }
+
+            bus.send(Internal::Game(action));
         }
 
         let State::Running = self.state else {
-            // re-enqueue the commands
+            // re-enqueue the commands since we need to wait until
+            // we are running again
             while let Some(command) = commands.pop() {
                 self.actions.push(Action::Command(command));
             }
@@ -252,15 +291,20 @@ impl Game {
         };
 
         bus.send(NetworkIntent::Commands {
-            tick: self.id + 2,
+            tick: self.tick + TICK_DELAY,
             commands,
         });
     }
 
     fn commands(&mut self, id: &usize, tick: &usize, commands: &[Command]) {
-        if self.commands.len() < *tick {
-            self.commands
-                .resize(self.commands.len() * 2, Vec::with_capacity(self.ids.len()));
+        if self.commands.len() <= *tick {
+            // self.commands
+            //     .resize(self.commands.len() * 2, Vec::with_capacity(self.ids.len()));
+            self.commands.resize_with(self.commands.len() * 2, || {
+                let mut v = Vec::with_capacity(self.ids.len());
+                v.push(Vec::new());
+                v
+            });
         }
 
         let tick_commands = &mut self.commands[*tick];
@@ -271,7 +315,7 @@ impl Game {
 
     fn prepare(&mut self) {
         // ensure we have received all commands, otherwise stall
-        if self.commands.len() <= self.tick {
+        if self.commands.len() < self.tick {
             let State::Stalling = self.state else {
                 self.actions.push(Action::Transition(State::Stalling));
                 return;
@@ -297,4 +341,6 @@ impl Game {
 
         self.actions.push(Action::Transition(State::Running));
     }
+
+    fn schedule(&mut self) {}
 }

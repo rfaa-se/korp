@@ -28,18 +28,13 @@ pub struct Cosmos {
 }
 
 impl Cosmos {
-    pub fn new() -> Self {
+    pub fn new(bounds: Rectangle<Flint>) -> Self {
         Self {
             components: Components::new(),
             forge: Forge::new(),
             executor: Executor::new(),
             observer: Observer::new(),
-            bounds: Rectangle {
-                x: Flint::new(50, 0),
-                y: Flint::new(40, 0),
-                width: Flint::new(700, 0),
-                height: Flint::new(400, 0),
-            },
+            bounds,
             commands: Vec::new(),
             tracked_death: Vec::new(),
             tracked_movement: Vec::new(),
@@ -81,8 +76,12 @@ impl Cosmos {
         }
     }
 
+    pub fn components(&self) -> &Components {
+        &self.components
+    }
+
     fn execute_commands(&mut self, bus: &mut Bus, commands: &[Vec<Command>]) {
-        for command in self.commands.iter() {
+        for command in self.commands.drain(..) {
             command.execute(&mut self.components, &mut self.forge, bus);
         }
 

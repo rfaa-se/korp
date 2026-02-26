@@ -8,17 +8,17 @@ use crate::{
     nexus::{game::Game, lobby::Lobby, menu::Menu},
 };
 
-mod game;
-mod lobby;
-mod menu;
+pub mod game;
+pub mod lobby;
+pub mod menu;
 
 pub struct Nexus {
-    state: State,
+    context: Context,
     actions: Vec<Action>,
 }
 
 #[derive(Debug, Clone)]
-pub enum NexusState {
+pub enum State {
     Menu,
     Lobby {
         id: usize,
@@ -32,10 +32,10 @@ pub enum NexusState {
 }
 
 enum Action {
-    Transition(NexusState),
+    Transition(State),
 }
 
-enum State {
+enum Context {
     Menu(Menu),
     Lobby(Lobby),
     Game(Game),
@@ -44,7 +44,7 @@ enum State {
 impl Nexus {
     pub fn new() -> Self {
         Self {
-            state: State::Menu(Menu::new()),
+            context: Context::Menu(Menu::new()),
             actions: Vec::new(),
         }
     }
@@ -52,18 +52,18 @@ impl Nexus {
     pub fn update(&mut self, bus: &mut Bus) {
         self.action(bus);
 
-        match &mut self.state {
-            State::Menu(menu) => menu.update(bus),
-            State::Lobby(lobby) => lobby.update(bus),
-            State::Game(game) => game.update(bus),
+        match &mut self.context {
+            Context::Menu(menu) => menu.update(bus),
+            Context::Lobby(lobby) => lobby.update(bus),
+            Context::Game(game) => game.update(bus),
         }
     }
 
     pub fn event(&mut self, event: &Event) {
-        match &mut self.state {
-            State::Menu(menu) => menu.event(event),
-            State::Lobby(lobby) => lobby.event(event),
-            State::Game(game) => game.event(event),
+        match &mut self.context {
+            Context::Menu(menu) => menu.event(event),
+            Context::Lobby(lobby) => lobby.event(event),
+            Context::Game(game) => game.event(event),
         }
 
         let Event::Nexus(events::Nexus::Intent(event)) = event else {
@@ -78,18 +78,18 @@ impl Nexus {
     }
 
     pub fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
-        match &mut self.state {
-            State::Menu(menu) => menu.render(renderer, alpha),
-            State::Lobby(lobby) => lobby.render(renderer, alpha),
-            State::Game(game) => game.render(renderer, alpha),
+        match &mut self.context {
+            Context::Menu(menu) => menu.render(renderer, alpha),
+            Context::Lobby(lobby) => lobby.render(renderer, alpha),
+            Context::Game(game) => game.render(renderer, alpha),
         }
     }
 
     pub fn input(&mut self, input: &Input) {
-        match &mut self.state {
-            State::Menu(menu) => menu.input(input),
-            State::Lobby(lobby) => lobby.input(input),
-            State::Game(game) => game.input(input),
+        match &mut self.context {
+            Context::Menu(menu) => menu.input(input),
+            Context::Lobby(lobby) => lobby.input(input),
+            Context::Game(game) => game.input(input),
         }
     }
 
@@ -97,15 +97,14 @@ impl Nexus {
         while let Some(action) = self.actions.pop() {
             match action {
                 Action::Transition(state) => {
-                    let clone = state.clone();
-                    let new = match state {
-                        NexusState::Menu => State::Menu(Menu::new()),
-                        NexusState::Lobby { id, host } => State::Lobby(Lobby::new(id, host)),
-                        NexusState::Game { id, ids, seed } => State::Game(Game::new(id, ids, seed)),
+                    let context = match state.clone() {
+                        State::Menu => Context::Menu(Menu::new()),
+                        State::Lobby { id, host } => Context::Lobby(Lobby::new(id, host)),
+                        State::Game { id, ids, seed } => Context::Game(Game::new(id, ids, seed)),
                     };
 
-                    self.state = new;
-                    bus.send(NexusEvent::Transitioned(clone));
+                    self.context = context;
+                    bus.send(NexusEvent::Transitioned(state));
                 }
             }
         }

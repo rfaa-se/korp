@@ -8,9 +8,9 @@ use korp_engine::{
 use crate::{
     bus::{
         Bus,
-        events::{Event, Network, NetworkEvent, NetworkIntent, NexusIntent},
+        events::{Event, Internal, Network, NetworkEvent, NetworkIntent, NexusIntent},
     },
-    nexus::NexusState,
+    nexus,
 };
 
 pub struct Menu {
@@ -20,12 +20,8 @@ pub struct Menu {
     keybindings: KeyBindings,
 }
 
-struct KeyBindings {
-    host: KeyCode,
-    connect: KeyCode,
-}
-
-enum State {
+#[derive(Debug, Clone)]
+pub enum State {
     Idle,
     Host,
     HostAwait,
@@ -34,11 +30,17 @@ enum State {
     Connect,
     ConnectAwait,
     Connected { id: usize },
-    ConnectedAwait,
+    TransitionAwait,
 }
 
-enum Action {
+#[derive(Debug, Clone)]
+pub enum Action {
     Transition(State),
+}
+
+struct KeyBindings {
+    host: KeyCode,
+    connect: KeyCode,
 }
 
 const TIMEOUT: u8 = 12;
@@ -58,66 +60,7 @@ impl Menu {
 
     pub fn update(&mut self, bus: &mut Bus) {
         self.action(bus);
-
-        match self.state {
-            State::Idle => return,
-            State::Host => {
-                bus.send(NetworkIntent::Host);
-
-                self.actions.push(Action::Transition(State::HostAwait));
-            }
-            State::HostAwait => {
-                self.counter += 1;
-
-                if self.counter > TIMEOUT {
-                    self.actions.push(Action::Transition(State::Idle));
-                }
-            }
-            State::Hosted { id } => {
-                bus.send(NexusIntent::Transition(NexusState::Lobby {
-                    id,
-                    host: true,
-                }));
-
-                self.actions.push(Action::Transition(State::HostedAwait));
-            }
-            State::HostedAwait => {
-                self.counter += 1;
-
-                if self.counter > TIMEOUT {
-                    // TODO: something is really wrong
-                    self.actions.push(Action::Transition(State::Idle));
-                }
-            }
-            State::Connect => {
-                bus.send(NetworkIntent::Connect(IpAddr::V4(Ipv4Addr::LOCALHOST)));
-
-                self.actions.push(Action::Transition(State::ConnectAwait));
-            }
-            State::ConnectAwait => {
-                self.counter += 1;
-
-                if self.counter > TIMEOUT {
-                    self.actions.push(Action::Transition(State::Idle));
-                }
-            }
-            State::Connected { id } => {
-                bus.send(NexusIntent::Transition(NexusState::Lobby {
-                    id,
-                    host: false,
-                }));
-
-                self.actions.push(Action::Transition(State::ConnectedAwait));
-            }
-            State::ConnectedAwait => {
-                self.counter += 1;
-
-                if self.counter > TIMEOUT {
-                    // TODO: something is really wrong
-                    self.actions.push(Action::Transition(State::Idle));
-                }
-            }
-        }
+        self.schedule();
     }
 
     pub fn input(&mut self, input: &Input) {
@@ -155,12 +98,65 @@ impl Menu {
         }
     }
 
-    fn action(&mut self, _bus: &mut Bus) {
+    fn action(&mut self, bus: &mut Bus) {
         while let Some(action) = self.actions.pop() {
-            match action {
+            match action.clone() {
                 Action::Transition(state) => {
+                    match self.state {
+                        State::Host => {
+                            bus.send(NetworkIntent::Host);
+                        }
+                        State::Hosted { id } => {
+                            bus.send(NexusIntent::Transition(nexus::State::Lobby {
+                                id,
+                                host: true,
+                            }));
+                        }
+                        State::Connect => {
+                            bus.send(NetworkIntent::Connect(IpAddr::V4(Ipv4Addr::LOCALHOST)));
+                        }
+                        State::Connected { id } => {
+                            bus.send(NexusIntent::Transition(nexus::State::Lobby {
+                                id,
+                                host: false,
+                            }));
+                        }
+                        _ => (),
+                    }
+
                     self.state = state;
                     self.counter = 0;
+                }
+            }
+
+            bus.send(Internal::Menu(action));
+        }
+    }
+
+    fn schedule(&mut self) {
+        match self.state {
+            State::Idle => return,
+            State::Host => {
+                self.actions.push(Action::Transition(State::HostAwait));
+            }
+            State::Hosted { .. } => {
+                self.actions.push(Action::Transition(State::HostedAwait));
+            }
+            State::Connect => {
+                self.actions.push(Action::Transition(State::ConnectAwait));
+            }
+            State::Connected { .. } => {
+                self.actions
+                    .push(Action::Transition(State::TransitionAwait));
+            }
+            State::HostAwait
+            | State::HostedAwait
+            | State::ConnectAwait
+            | State::TransitionAwait => {
+                self.counter += 1;
+
+                if self.counter > TIMEOUT {
+                    self.actions.push(Action::Transition(State::Idle));
                 }
             }
         }

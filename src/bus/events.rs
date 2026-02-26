@@ -8,7 +8,7 @@ use crate::{
         commands::{Command, SpawnKind},
         entities::Entity,
     },
-    nexus::NexusState,
+    nexus::{State, game, lobby, menu},
 };
 
 #[derive(Debug)]
@@ -17,7 +17,7 @@ pub enum Event {
     Network(Network),
     Core(Core),
     Nexus(Nexus),
-    // Menu(Menu),
+    Internal(Internal),
 }
 
 #[derive(Debug)]
@@ -93,29 +93,20 @@ pub enum Nexus {
 
 #[derive(Debug)]
 pub enum NexusIntent {
-    Transition(NexusState),
+    Transition(State),
 }
 
 #[derive(Debug)]
 pub enum NexusEvent {
-    Transitioned(NexusState),
+    Transitioned(State),
 }
 
-// #[derive(Debug)]
-// pub enum Menu {
-//     Intent(MenuIntent),
-//     Event(MenuEvent),
-// }
-
-// #[derive(Debug)]
-// pub enum MenuIntent {
-//     Transition(MenuState)
-// }
-
-// #[derive(Debug)]
-// pub enum MenuEvent {
-//     Transitioned(MenuState)
-// }
+#[derive(Debug)]
+pub enum Internal {
+    Menu(menu::Action),
+    Lobby(lobby::Action),
+    Game(game::Action),
+}
 
 impl From<Cosmos> for Event {
     fn from(value: Cosmos) -> Self {
@@ -186,5 +177,11 @@ impl From<NexusIntent> for Event {
 impl From<Nexus> for Event {
     fn from(value: Nexus) -> Self {
         Event::Nexus(value)
+    }
+}
+
+impl From<Internal> for Event {
+    fn from(value: Internal) -> Self {
+        Event::Internal(value)
     }
 }
