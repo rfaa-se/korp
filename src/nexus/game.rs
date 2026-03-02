@@ -47,7 +47,7 @@ pub enum State {
     Stalling,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Action {
     Transition(State),
     Toggle,
@@ -261,15 +261,15 @@ impl Game {
         let mut commands = Vec::new();
 
         while let Some(action) = self.actions.pop() {
-            match action.clone() {
-                Action::Transition(state) => {
-                    self.state = state;
+            match action {
+                Action::Transition(ref state) => {
+                    self.state = state.clone();
                 }
                 Action::Toggle => {
                     self.toggle = !self.toggle;
                 }
-                Action::Command(command) => {
-                    commands.push(command);
+                Action::Command(ref command) => {
+                    commands.push(command.clone());
 
                     let State::Running = self.state else {
                         continue;
@@ -297,9 +297,8 @@ impl Game {
     }
 
     fn commands(&mut self, id: &usize, tick: &usize, commands: &[Command]) {
-        if self.commands.len() <= *tick {
-            // self.commands
-            //     .resize(self.commands.len() * 2, Vec::with_capacity(self.ids.len()));
+        // ensure we can support the requested tick
+        if self.commands.len() == *tick {
             self.commands.resize_with(self.commands.len() * 2, || {
                 let mut v = Vec::with_capacity(self.ids.len());
                 v.push(Vec::new());

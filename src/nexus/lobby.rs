@@ -30,7 +30,7 @@ pub enum State {
     TransitionAwait,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Action {
     Transition(State),
 }
@@ -92,8 +92,8 @@ impl Lobby {
 
     fn action(&mut self, bus: &mut Bus) {
         while let Some(action) = self.actions.pop() {
-            match action.clone() {
-                Action::Transition(state) => {
+            match action {
+                Action::Transition(ref state) => {
                     match self.state {
                         State::Launch => {
                             bus.send(NetworkIntent::Launch);
@@ -111,7 +111,7 @@ impl Lobby {
                         _ => (),
                     }
 
-                    self.state = state;
+                    self.state = state.clone();
                     self.counter = 0;
                 }
             }

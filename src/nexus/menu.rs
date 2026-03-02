@@ -33,7 +33,7 @@ pub enum State {
     TransitionAwait,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Action {
     Transition(State),
 }
@@ -100,8 +100,8 @@ impl Menu {
 
     fn action(&mut self, bus: &mut Bus) {
         while let Some(action) = self.actions.pop() {
-            match action.clone() {
-                Action::Transition(state) => {
+            match action {
+                Action::Transition(ref state) => {
                     match self.state {
                         State::Host => {
                             bus.send(NetworkIntent::Host);
@@ -124,7 +124,7 @@ impl Menu {
                         _ => (),
                     }
 
-                    self.state = state;
+                    self.state = state.clone();
                     self.counter = 0;
                 }
             }
