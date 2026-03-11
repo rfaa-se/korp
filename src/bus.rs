@@ -1,5 +1,5 @@
 use crate::{
-    bus::events::{Cosmos, Event},
+    bus::events::{CosmosEvent, Event, IntentEvent},
     network::Network,
     nexus::Nexus,
 };
@@ -16,19 +16,18 @@ impl Bus {
     }
 
     pub fn update(&mut self, nexus: &mut Nexus, network: &mut Network) {
-        for event in self.events.iter() {
-            nexus.event(event);
-            network.event(event);
+        for event in self.events.drain(..) {
+            nexus.event(&event);
+            network.event(&event);
 
-            if let Event::Cosmos(Cosmos::Event(events::CosmosEvent::TrackedMovement { .. })) = event
-            {
-                continue;
+            // let's not print these...
+            match event {
+                Event::Cosmos(IntentEvent::Event(CosmosEvent::TrackedMovement { .. })) => continue,
+                _ => (),
             }
 
             println!("{:?}", event);
         }
-
-        self.events.clear();
     }
 
     pub fn send<T: Into<Event>>(&mut self, event: T) {

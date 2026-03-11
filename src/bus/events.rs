@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-use korp_engine::CoreEvent as Core;
+use korp_engine::CoreEvent;
 use korp_math::{Flint, Vec2};
 
 use crate::{
@@ -8,22 +8,25 @@ use crate::{
         commands::{Command, SpawnKind},
         entities::Entity,
     },
-    nexus::{State, game, lobby, menu},
+    network,
+    nexus::{self, game, lobby, menu},
 };
 
 #[derive(Debug)]
 pub enum Event {
-    Cosmos(Cosmos),
-    Network(Network),
-    Core(Core),
-    Nexus(Nexus),
-    Internal(Internal),
+    Cosmos(IntentEvent<CosmosIntent, CosmosEvent>),
+    Network(IntentEvent<NetworkIntent, NetworkEvent>),
+    Core(CoreEvent),
+    Nexus(IntentEvent<NexusIntent, NexusEvent>),
+    Menu(MenuEvent),
+    Lobby(LobbyEvent),
+    Game(GameEvent),
 }
 
 #[derive(Debug)]
-pub enum Cosmos {
-    Intent(CosmosIntent),
-    Event(CosmosEvent),
+pub enum IntentEvent<TIntent, TEvent> {
+    Intent(TIntent),
+    Event(TEvent),
 }
 
 #[derive(Debug)]
@@ -52,29 +55,28 @@ pub enum CosmosEvent {
 }
 
 #[derive(Debug)]
-pub enum Network {
-    Intent(NetworkIntent),
-    Event(NetworkEvent),
-}
-
-#[derive(Debug)]
 pub enum NetworkIntent {
     Host,
     Connect(IpAddr),
     Disconnect,
     Launch,
     Commands { tick: usize, commands: Vec<Command> },
+    Pause,
+    Resume,
 }
 
 #[derive(Debug)]
 pub enum NetworkEvent {
+    Action(network::Action),
     Hosted {
         id: usize,
     },
     Connected {
         id: usize,
     },
-    Launched,
+    Launched {
+        seed: u64,
+    },
     Disconnected {
         id: usize,
     },
@@ -83,105 +85,90 @@ pub enum NetworkEvent {
         tick: usize,
         commands: Vec<Command>,
     },
-}
-
-#[derive(Debug)]
-pub enum Nexus {
-    Intent(NexusIntent),
-    Event(NexusEvent),
+    Paused,
+    Resumed,
 }
 
 #[derive(Debug)]
 pub enum NexusIntent {
-    Transition(State),
+    Transition(nexus::State),
 }
 
 #[derive(Debug)]
 pub enum NexusEvent {
-    Transitioned(State),
+    Action(nexus::Action),
+    Transitioned(nexus::State),
 }
 
 #[derive(Debug)]
-pub enum Internal {
-    Menu(menu::Action),
-    Lobby(lobby::Action),
-    Game(game::Action),
+pub enum MenuEvent {
+    Action(menu::Action),
+    Transitioned(menu::State),
 }
 
-impl From<Cosmos> for Event {
-    fn from(value: Cosmos) -> Self {
-        Event::Cosmos(value)
-    }
+#[derive(Debug)]
+pub enum LobbyEvent {
+    Action(lobby::Action),
+    Transitioned(lobby::State),
 }
 
-impl From<CosmosEvent> for Cosmos {
-    fn from(value: CosmosEvent) -> Self {
-        Cosmos::Event(value)
-    }
+#[derive(Debug)]
+pub enum GameEvent {
+    Action(game::Action),
+    Transitioned(game::State),
+    Toggled(bool),
 }
 
 impl From<CosmosEvent> for Event {
     fn from(value: CosmosEvent) -> Self {
-        Cosmos::Event(value).into()
-    }
-}
-
-impl From<CosmosIntent> for Cosmos {
-    fn from(value: CosmosIntent) -> Self {
-        Cosmos::Intent(value)
+        Event::Cosmos(IntentEvent::Event(value))
     }
 }
 
 impl From<CosmosIntent> for Event {
     fn from(value: CosmosIntent) -> Self {
-        Cosmos::Intent(value).into()
-    }
-}
-
-impl From<Network> for Event {
-    fn from(value: Network) -> Self {
-        Event::Network(value)
-    }
-}
-
-impl From<NetworkIntent> for Network {
-    fn from(value: NetworkIntent) -> Self {
-        Network::Intent(value)
+        Event::Cosmos(IntentEvent::Intent(value))
     }
 }
 
 impl From<NetworkIntent> for Event {
     fn from(value: NetworkIntent) -> Self {
-        Network::Intent(value).into()
+        Event::Network(IntentEvent::Intent(value))
     }
 }
 
 impl From<NetworkEvent> for Event {
     fn from(value: NetworkEvent) -> Self {
-        Network::Event(value).into()
+        Event::Network(IntentEvent::Event(value))
     }
 }
 
 impl From<NexusEvent> for Event {
     fn from(value: NexusEvent) -> Self {
-        Nexus::Event(value).into()
+        Event::Nexus(IntentEvent::Event(value))
     }
 }
 
 impl From<NexusIntent> for Event {
     fn from(value: NexusIntent) -> Self {
-        Nexus::Intent(value).into()
+        Event::Nexus(IntentEvent::Intent(value))
     }
 }
 
-impl From<Nexus> for Event {
-    fn from(value: Nexus) -> Self {
-        Event::Nexus(value)
+impl From<MenuEvent> for Event {
+    fn from(value: MenuEvent) -> Self {
+        Event::Menu(value)
     }
 }
 
-impl From<Internal> for Event {
-    fn from(value: Internal) -> Self {
-        Event::Internal(value)
+impl From<LobbyEvent> for Event {
+    fn from(value: LobbyEvent) -> Self {
+        Event::Lobby(value)
+    }
+}
+
+impl From<GameEvent> for Event {
+    fn from(value: GameEvent) -> Self {
+        Event::Game(value)
     }
 }

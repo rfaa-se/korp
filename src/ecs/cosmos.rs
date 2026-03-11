@@ -4,7 +4,7 @@ use korp_math::Flint;
 use crate::{
     bus::{
         Bus,
-        events::{self, CosmosEvent, CosmosIntent, Event},
+        events::{CosmosEvent, CosmosIntent, Event, IntentEvent},
     },
     ecs::{
         commands::Command,
@@ -61,7 +61,7 @@ impl Cosmos {
     }
 
     pub fn event(&mut self, event: &Event) {
-        let Event::Cosmos(events::Cosmos::Intent(event)) = event else {
+        let Event::Cosmos(IntentEvent::Intent(event)) = event else {
             return;
         };
 

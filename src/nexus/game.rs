@@ -13,7 +13,7 @@ use crate::{
     bus::{
         Bus,
         events::{
-            self, CosmosEvent, CosmosIntent, Event, Internal, Network, NetworkEvent, NetworkIntent,
+            CosmosEvent, CosmosIntent, Event, GameEvent, IntentEvent, NetworkEvent, NetworkIntent,
         },
     },
     ecs::{
@@ -35,7 +35,8 @@ pub struct Game {
     keybindings: KeyBindings,
     state: State,
     actions: Vec<Action>,
-    commands: Vec<Vec<Vec<Command>>>,
+    commands: Vec<Command>,
+    commands_history: Vec<Vec<Vec<Command>>>,
     tick: usize,
     id_idx: HashMap<usize, usize>,
 }
@@ -47,11 +48,12 @@ pub enum State {
     Stalling,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Action {
     Transition(State),
     Toggle,
-    Command(Command),
+    Pause,
+    Resume,
 }
 
 struct KeyBindings {
@@ -62,6 +64,7 @@ struct KeyBindings {
     toggle: KeyCode,
     triangle: KeyCode,
     rectangle: KeyCode,
+    pause: KeyCode,
 }
 
 const TICK_DELAY: usize = 2;
@@ -80,13 +83,13 @@ impl Game {
         );
         let mut cosmos = Cosmos::new(bounds);
         let mut id_idx = HashMap::new();
-        let mut commands = Vec::with_capacity(1024);
+        let mut commands_history = Vec::with_capacity(1024);
 
         for tick in 0..TICK_DELAY {
-            commands.push(Vec::with_capacity(ids.len()));
+            commands_history.push(Vec::with_capacity(ids.len()));
 
             for _ in 0..ids.len() {
-                commands[tick].push(Vec::new());
+                commands_history[tick].push(Vec::new());
             }
         }
 
@@ -120,10 +123,12 @@ impl Game {
                 toggle: KeyCode::F1,
                 triangle: KeyCode::Digit1,
                 rectangle: KeyCode::Digit2,
+                pause: KeyCode::KeyP,
             },
             state: State::Running,
             actions: Vec::new(),
-            commands,
+            commands: Vec::new(),
+            commands_history,
             tick: 0,
             id_idx,
         }
@@ -138,59 +143,15 @@ impl Game {
             return;
         };
 
-        self.cosmos.update(bus, &self.commands[self.tick]);
+        self.cosmos.update(bus, &self.commands_history[self.tick]);
         self.tick += 1;
     }
 
     pub fn input(&mut self, input: &Input) {
-        let State::Running = self.state else {
-            return;
-        };
-
-        if input.is_pressed(&self.keybindings.toggle) {
-            self.actions.push(Action::Toggle);
-        }
-
-        if input.is_pressed(&self.keybindings.triangle) {
-            self.actions.push(Action::Command(Command::Spawn {
-                id: None,
-                kind: SpawnKind::Triangle,
-                centroid: Vec2::new(
-                    Flint::from_i16(input.mouse.x as i16),
-                    Flint::from_i16(input.mouse.y as i16),
-                ),
-            }));
-        }
-
-        if input.is_pressed(&self.keybindings.rectangle) {
-            self.actions.push(Action::Command(Command::Spawn {
-                id: None,
-                kind: SpawnKind::Rectangle,
-                centroid: Vec2::new(
-                    Flint::from_i16(input.mouse.x as i16),
-                    Flint::from_i16(input.mouse.y as i16),
-                ),
-            }));
-        }
-
-        let Some(pid) = self.pid else {
-            return;
-        };
-
-        if input.is_down(&self.keybindings.up) {
-            self.actions.push(Action::Command(Command::Accelerate(pid)));
-        }
-
-        if input.is_down(&self.keybindings.down) {
-            self.actions.push(Action::Command(Command::Decelerate(pid)));
-        }
-
-        if input.is_down(&self.keybindings.left) {
-            self.actions.push(Action::Command(Command::TurnLeft(pid)));
-        }
-
-        if input.is_down(&self.keybindings.right) {
-            self.actions.push(Action::Command(Command::TurnRight(pid)));
+        match self.state {
+            State::Running => self.input_running(input),
+            State::Paused => self.input_paused(input),
+            State::Stalling => self.input_stalling(input),
         }
     }
 
@@ -218,16 +179,37 @@ impl Game {
     pub fn event(&mut self, event: &Event) {
         self.cosmos.event(event);
 
-        if let Event::Network(Network::Event(NetworkEvent::Commands { id, tick, commands })) = event
-        {
-            self.commands(id, tick, commands);
+        if let Event::Network(IntentEvent::Event(event)) = event {
+            self.event_network(event);
             return;
         }
 
-        let Event::Cosmos(events::Cosmos::Event(event)) = event else {
+        if let Event::Cosmos(IntentEvent::Event(event)) = event {
+            self.event_cosmos(event);
             return;
-        };
+        }
+    }
 
+    fn event_network(&mut self, event: &NetworkEvent) {
+        match event {
+            NetworkEvent::Disconnected { id } => {
+                self.ids.retain(|x| x == id);
+                // TODO: signal the cosmos?
+            }
+            NetworkEvent::Commands { id, tick, commands } => {
+                self.commands(id, tick, commands);
+            }
+            NetworkEvent::Paused => {
+                self.actions.push(Action::Transition(State::Paused));
+            }
+            NetworkEvent::Resumed => {
+                self.actions.push(Action::Transition(State::Running));
+            }
+            _ => (),
+        }
+    }
+
+    fn event_cosmos(&mut self, event: &CosmosEvent) {
         match event {
             CosmosEvent::Spawned {
                 id: Some(id),
@@ -253,60 +235,55 @@ impl Game {
                 self.camera_target.old = self.camera_target.new;
                 self.camera_target.new = (*centroid).into();
             }
-            _ => return,
+            _ => (),
         }
     }
 
     fn action(&mut self, bus: &mut Bus) {
-        let mut commands = Vec::new();
-
         while let Some(action) = self.actions.pop() {
+            bus.send(GameEvent::Action(action.clone()));
+
             match action {
-                Action::Transition(ref state) => {
-                    self.state = state.clone();
+                Action::Transition(state) => {
+                    self.state = state;
+                    bus.send(GameEvent::Transitioned(self.state.clone()));
                 }
                 Action::Toggle => {
                     self.toggle = !self.toggle;
+                    bus.send(GameEvent::Toggled(self.toggle));
                 }
-                Action::Command(ref command) => {
-                    commands.push(command.clone());
-
-                    let State::Running = self.state else {
-                        continue;
-                    };
+                Action::Pause => {
+                    bus.send(NetworkIntent::Pause);
+                }
+                Action::Resume => {
+                    bus.send(NetworkIntent::Resume);
                 }
             }
-
-            bus.send(Internal::Game(action));
         }
 
         let State::Running = self.state else {
-            // re-enqueue the commands since we need to wait until
-            // we are running again
-            while let Some(command) = commands.pop() {
-                self.actions.push(Action::Command(command));
-            }
-
             return;
         };
 
+        // always send the current commands for this tick
         bus.send(NetworkIntent::Commands {
             tick: self.tick + TICK_DELAY,
-            commands,
+            commands: std::mem::take(&mut self.commands),
         });
     }
 
     fn commands(&mut self, id: &usize, tick: &usize, commands: &[Command]) {
         // ensure we can support the requested tick
-        if self.commands.len() == *tick {
-            self.commands.resize_with(self.commands.len() * 2, || {
-                let mut v = Vec::with_capacity(self.ids.len());
-                v.push(Vec::new());
-                v
-            });
+        if self.commands_history.len() == *tick {
+            self.commands_history
+                .resize_with(self.commands_history.len() * 2, || {
+                    let mut v = Vec::with_capacity(self.ids.len());
+                    v.push(Vec::new());
+                    v
+                });
         }
 
-        let tick_commands = &mut self.commands[*tick];
+        let tick_commands = &mut self.commands_history[*tick];
         let idx = self.id_idx[id];
 
         tick_commands[idx] = Vec::from(commands);
@@ -314,7 +291,7 @@ impl Game {
 
     fn prepare(&mut self) {
         // ensure we have received all commands, otherwise stall
-        if self.commands.len() < self.tick {
+        if self.commands_history.len() < self.tick {
             let State::Stalling = self.state else {
                 self.actions.push(Action::Transition(State::Stalling));
                 return;
@@ -323,7 +300,7 @@ impl Game {
             return;
         }
 
-        let tick_commands = &self.commands[self.tick];
+        let tick_commands = &self.commands_history[self.tick];
 
         if tick_commands.len() < self.ids.len() {
             let State::Stalling = self.state else {
@@ -342,4 +319,64 @@ impl Game {
     }
 
     fn schedule(&mut self) {}
+
+    fn input_running(&mut self, input: &Input) {
+        if input.is_pressed(&self.keybindings.pause) {
+            self.actions.push(Action::Pause);
+        }
+
+        if input.is_pressed(&self.keybindings.toggle) {
+            self.actions.push(Action::Toggle);
+        }
+
+        if input.is_pressed(&self.keybindings.triangle) {
+            self.commands.push(Command::Spawn {
+                id: None,
+                kind: SpawnKind::Triangle,
+                centroid: Vec2::new(
+                    Flint::from_i16(input.mouse.x as i16),
+                    Flint::from_i16(input.mouse.y as i16),
+                ),
+            });
+        }
+
+        if input.is_pressed(&self.keybindings.rectangle) {
+            self.commands.push(Command::Spawn {
+                id: None,
+                kind: SpawnKind::Rectangle,
+                centroid: Vec2::new(
+                    Flint::from_i16(input.mouse.x as i16),
+                    Flint::from_i16(input.mouse.y as i16),
+                ),
+            });
+        }
+
+        let Some(pid) = self.pid else {
+            return;
+        };
+
+        if input.is_down(&self.keybindings.up) {
+            self.commands.push(Command::Accelerate(pid));
+        }
+
+        if input.is_down(&self.keybindings.down) {
+            self.commands.push(Command::Decelerate(pid));
+        }
+
+        if input.is_down(&self.keybindings.left) {
+            self.commands.push(Command::TurnLeft(pid));
+        }
+
+        if input.is_down(&self.keybindings.right) {
+            self.commands.push(Command::TurnRight(pid));
+        }
+    }
+
+    fn input_stalling(&mut self, _input: &Input) {}
+
+    fn input_paused(&mut self, input: &Input) {
+        if input.is_pressed(&self.keybindings.pause) {
+            self.actions.push(Action::Resume);
+        }
+    }
 }

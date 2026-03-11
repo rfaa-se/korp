@@ -1,4 +1,4 @@
-use korp_engine::{Core, input::Input, renderer::Renderer};
+use korp_engine::{Core, CoreEvent, input::Input, renderer::Renderer};
 
 use crate::{
     bus::{Bus, events::Event},
@@ -37,7 +37,7 @@ impl Core for Korp {
         self.nexus.render(renderer, alpha);
     }
 
-    fn event(&mut self, event: &korp_engine::CoreEvent) {
+    fn event(&mut self, event: &CoreEvent) {
         self.bus.send(Event::Core(*event));
     }
 }

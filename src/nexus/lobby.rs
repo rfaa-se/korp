@@ -6,15 +6,14 @@ use korp_engine::{
 use crate::{
     bus::{
         Bus,
-        events::{Event, Internal, Network, NetworkEvent, NetworkIntent, NexusIntent},
+        events::{Event, IntentEvent, LobbyEvent, NetworkEvent, NetworkIntent, NexusIntent},
     },
-    nexus::{self},
+    nexus,
 };
 
 pub struct Lobby {
-    id: usize,
     host: bool,
-    counter: u8,
+    data: Data,
     state: State,
     actions: Vec<Action>,
     keybindings: KeyBindings,
@@ -23,16 +22,21 @@ pub struct Lobby {
 #[derive(Debug, Clone)]
 pub enum State {
     Idle,
-    Launch,
-    LaunchAwait,
-    Launched,
-    Leave,
-    TransitionAwait,
+    LaunchAwait { counter: u8 },
+    ExitAwait { counter: u8 },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Action {
     Transition(State),
+    Launch,
+    Launched { seed: u64 },
+    Leave,
+}
+
+struct Data {
+    id: usize,
+    ids: Vec<usize>,
 }
 
 struct KeyBindings {
@@ -45,9 +49,8 @@ const TIMEOUT: u8 = 12;
 impl Lobby {
     pub fn new(id: usize, host: bool) -> Self {
         Self {
-            id,
             host,
-            counter: 0,
+            data: Data { id, ids: vec![id] },
             state: State::Idle,
             actions: Vec::new(),
             keybindings: KeyBindings {
@@ -58,85 +61,98 @@ impl Lobby {
     }
 
     pub fn update(&mut self, bus: &mut Bus) {
-        self.action(bus);
-        self.schedule();
+        while let Some(action) = self.actions.pop() {
+            self.state.handle(action, bus, &self.data);
+        }
+
+        self.state.update(bus, &self.data);
     }
 
     pub fn input(&mut self, input: &Input) {
         match self.state {
-            State::Idle => {
+            State::Idle { .. } => {
                 if input.is_pressed(&self.keybindings.start) {
-                    self.actions.push(Action::Transition(State::Launch));
+                    self.actions.push(Action::Launch);
                 }
 
                 if input.is_pressed(&self.keybindings.exit) {
-                    self.actions.push(Action::Transition(State::Leave));
+                    self.actions.push(Action::Leave);
                 }
             }
-            _ => return,
+            _ => (),
         }
     }
 
     pub fn render(&mut self, _renderer: &mut Renderer, _alpha: f32) {}
 
     pub fn event(&mut self, event: &Event) {
-        match self.state {
-            State::LaunchAwait => {
-                if let Event::Network(Network::Event(NetworkEvent::Launched)) = event {
-                    self.actions.push(Action::Transition(State::Launched));
-                }
+        match (&self.state, event) {
+            (
+                State::LaunchAwait { .. },
+                Event::Network(IntentEvent::Event(NetworkEvent::Launched { seed })),
+            ) => {
+                self.actions.push(Action::Launched { seed: *seed });
             }
-            _ => return,
+            _ => (),
+        }
+    }
+}
+
+impl State {
+    fn handle(&mut self, action: Action, bus: &mut Bus, data: &Data) {
+        bus.send(LobbyEvent::Action(action.clone()));
+
+        match (&self, action) {
+            (State::Idle, Action::Launch) => {
+                bus.send(NetworkIntent::Launch);
+
+                self.handle(
+                    Action::Transition(State::LaunchAwait { counter: 0 }),
+                    bus,
+                    data,
+                );
+            }
+            (State::Idle, Action::Leave) => {
+                bus.send(NetworkIntent::Disconnect);
+                bus.send(NexusIntent::Transition(nexus::State::Menu));
+
+                self.handle(
+                    Action::Transition(State::ExitAwait { counter: 0 }),
+                    bus,
+                    data,
+                );
+            }
+            (State::LaunchAwait { .. }, Action::Launched { seed }) => {
+                bus.send(NexusIntent::Transition(nexus::State::Game {
+                    id: data.id,
+                    ids: data.ids.clone(),
+                    seed,
+                }));
+
+                self.handle(
+                    Action::Transition(State::ExitAwait { counter: 0 }),
+                    bus,
+                    data,
+                );
+            }
+            (_, Action::Transition(state)) => {
+                *self = state;
+                bus.send(LobbyEvent::Transitioned(self.clone()));
+            }
+            (_, _) => (),
         }
     }
 
-    fn action(&mut self, bus: &mut Bus) {
-        while let Some(action) = self.actions.pop() {
-            match action {
-                Action::Transition(ref state) => {
-                    match self.state {
-                        State::Launch => {
-                            bus.send(NetworkIntent::Launch);
-                        }
-                        State::Launched => {
-                            bus.send(NexusIntent::Transition(nexus::State::Game {
-                                id: self.id,
-                                ids: vec![self.id],
-                                seed: 0,
-                            }));
-                        }
-                        State::Leave => {
-                            bus.send(NexusIntent::Transition(nexus::State::Menu));
-                        }
-                        _ => (),
-                    }
+    fn update(&mut self, bus: &mut Bus, data: &Data) {
+        match self {
+            State::LaunchAwait { counter } | State::ExitAwait { counter } => {
+                *counter += 1;
 
-                    self.state = state.clone();
-                    self.counter = 0;
+                if *counter > TIMEOUT {
+                    self.handle(Action::Transition(State::Idle), bus, data);
                 }
             }
-
-            bus.send(Internal::Lobby(action));
-        }
-    }
-
-    fn schedule(&mut self) {
-        match self.state {
-            State::Idle => return,
-            State::Launch => {
-                self.actions.push(Action::Transition(State::LaunchAwait));
-            }
-            State::Launched | State::Leave => {
-                self.actions
-                    .push(Action::Transition(State::TransitionAwait));
-            }
-            State::LaunchAwait | State::TransitionAwait => {
-                self.counter += 1;
-
-                if self.counter > TIMEOUT {
-                    self.actions.push(Action::Transition(State::Idle));
-                }
-            }
+            _ => (),
         }
     }
 }
