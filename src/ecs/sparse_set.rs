@@ -72,7 +72,7 @@ impl<T> SparseSet<T> {
         self.entities.iter().zip(self.dense.iter_mut())
     }
 
-    pub fn len(&self) -> usize {
+    pub fn _len(&self) -> usize {
         self.dense.len()
     }
 

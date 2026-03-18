@@ -16,29 +16,29 @@ use crate::{
 };
 
 pub struct Cosmos {
+    bounds: Rectangle<Flint>,
     components: Components,
     forge: Forge,
     executor: Executor,
     observer: Observer,
-    bounds: Rectangle<Flint>,
     commands: Vec<Command>,
+    dead: Vec<Entity>,
     tracked_death: Vec<Entity>,
     tracked_movement: Vec<Entity>,
-    dead: Vec<Entity>,
 }
 
 impl Cosmos {
     pub fn new(bounds: Rectangle<Flint>) -> Self {
         Self {
+            bounds,
             components: Components::new(),
             forge: Forge::new(),
             executor: Executor::new(),
             observer: Observer::new(),
-            bounds,
             commands: Vec::new(),
+            dead: Vec::new(),
             tracked_death: Vec::new(),
             tracked_movement: Vec::new(),
-            dead: Vec::new(),
         }
     }
 
@@ -46,10 +46,11 @@ impl Cosmos {
         self.execute_commands(bus, commands);
 
         self.executor.execute(
+            &self.bounds,
             &mut self.components,
             &mut self.forge,
-            &self.bounds,
             &mut self.dead,
+            &mut self.commands,
         );
 
         self.send_events(bus);
@@ -94,14 +95,18 @@ impl Cosmos {
         for entity in self.dead.drain(..) {
             bus.send(CosmosEvent::Died(entity));
 
-            for tracked_death in self.tracked_death.iter() {
-                if entity == *tracked_death {
+            self.tracked_death.retain_mut(|x| {
+                if *x == entity {
                     bus.send(CosmosEvent::TrackedDeath(entity));
 
                     // no need to keep tracking entities if they are dead
-                    self.tracked_movement.retain_mut(|x| *x != entity);
+                    self.tracked_movement.retain_mut(|y| *y != entity);
+
+                    return false;
                 }
-            }
+
+                true
+            });
         }
 
         for entity in self.tracked_movement.iter() {

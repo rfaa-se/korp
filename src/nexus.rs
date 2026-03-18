@@ -28,6 +28,7 @@ pub enum State {
         id: usize,
         ids: Vec<usize>,
         seed: u64,
+        delay: usize,
     },
 }
 
@@ -90,7 +91,12 @@ impl Context {
                 *self = match state.clone() {
                     State::Menu => Context::Menu(Menu::new()),
                     State::Lobby { id, host } => Context::Lobby(Lobby::new(id, host)),
-                    State::Game { id, ids, seed } => Context::Game(Game::new(id, ids, seed)),
+                    State::Game {
+                        id,
+                        ids,
+                        seed,
+                        delay,
+                    } => Context::Game(Game::new(id, ids, seed, delay)),
                 };
 
                 bus.send(NexusEvent::Transitioned(state));

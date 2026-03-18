@@ -5,7 +5,12 @@ use crate::ecs::{entities::Entity, sparse_set::SparseSet};
 
 pub mod traits;
 
+pub struct Brains {
+    pub projectiles: SparseSet<Brain>,
+}
+
 pub struct Logic {
+    pub brains: Brains,
     pub bodies: SparseSet<Morph<Body<Flint>>>,
     pub hitboxes: SparseSet<EngineRectangle<Flint>>,
     pub motions: SparseSet<Motion>,
@@ -25,6 +30,9 @@ impl Components {
     pub fn new() -> Self {
         Self {
             logic: Logic {
+                brains: Brains {
+                    projectiles: SparseSet::new(u16::MAX as usize),
+                },
                 bodies: SparseSet::new(u16::MAX as usize),
                 hitboxes: SparseSet::new(u16::MAX as usize),
                 motions: SparseSet::new(u16::MAX as usize),
@@ -37,6 +45,8 @@ impl Components {
     }
 
     pub fn destroy(&mut self, entity: Entity) {
+        self.logic.brains.projectiles.remove(entity);
+
         self.logic.bodies.remove(entity);
         self.logic.hitboxes.remove(entity);
         self.logic.motions.remove(entity);
@@ -83,3 +93,5 @@ pub struct Rectangle<T> {
     pub width: T,
     pub height: T,
 }
+
+pub struct Brain;

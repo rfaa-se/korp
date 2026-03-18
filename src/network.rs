@@ -11,6 +11,7 @@ use crate::{
 pub struct Network {
     actions: Vec<Action>,
     id: usize,
+    delay: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -30,6 +31,7 @@ impl Network {
         Self {
             actions: Vec::new(),
             id: 0,
+            delay: 2,
         }
     }
 
@@ -49,7 +51,7 @@ impl Network {
             }
             NetworkIntent::Commands { tick, commands } => {
                 self.actions.push(Action::Commands {
-                    tick: *tick,
+                    tick: (*tick) + self.delay,
                     commands: (*commands).clone(),
                 });
             }
@@ -90,7 +92,10 @@ impl Network {
                     });
                 }
                 Action::Launch => {
-                    bus.send(NetworkEvent::Launched { seed: 1337 });
+                    bus.send(NetworkEvent::Launched {
+                        seed: 1337,
+                        delay: self.delay,
+                    });
                 }
                 Action::Pause => {
                     bus.send(NetworkEvent::Paused);

@@ -30,7 +30,7 @@ pub enum State {
 pub enum Action {
     Transition(State),
     Launch,
-    Launched { seed: u64 },
+    Launched { seed: u64, delay: usize },
     Leave,
 }
 
@@ -71,7 +71,7 @@ impl Lobby {
     pub fn input(&mut self, input: &Input) {
         match self.state {
             State::Idle { .. } => {
-                if input.is_pressed(&self.keybindings.start) {
+                if input.is_pressed(&self.keybindings.start) && self.host {
                     self.actions.push(Action::Launch);
                 }
 
@@ -89,9 +89,12 @@ impl Lobby {
         match (&self.state, event) {
             (
                 State::LaunchAwait { .. },
-                Event::Network(IntentEvent::Event(NetworkEvent::Launched { seed })),
+                Event::Network(IntentEvent::Event(NetworkEvent::Launched { seed, delay })),
             ) => {
-                self.actions.push(Action::Launched { seed: *seed });
+                self.actions.push(Action::Launched {
+                    seed: *seed,
+                    delay: *delay,
+                });
             }
             _ => (),
         }
@@ -122,11 +125,12 @@ impl State {
                     data,
                 );
             }
-            (State::LaunchAwait { .. }, Action::Launched { seed }) => {
+            (State::LaunchAwait { .. }, Action::Launched { seed, delay }) => {
                 bus.send(NexusIntent::Transition(nexus::State::Game {
                     id: data.id,
                     ids: data.ids.clone(),
                     seed,
+                    delay,
                 }));
 
                 self.handle(

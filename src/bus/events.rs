@@ -76,6 +76,7 @@ pub enum NetworkEvent {
     },
     Launched {
         seed: u64,
+        delay: usize,
     },
     Disconnected {
         id: usize,

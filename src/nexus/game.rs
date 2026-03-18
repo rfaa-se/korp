@@ -24,21 +24,13 @@ use crate::{
 };
 
 pub struct Game {
-    id: usize,
-    pid: Option<Entity>,
-    ids: Vec<usize>,
-    seed: u64,
     cosmos: Cosmos,
     camera: Camera,
     camera_target: Morph<Vec2<f32>>,
-    toggle: bool,
     keybindings: KeyBindings,
     state: State,
     actions: Vec<Action>,
-    commands: Vec<Command>,
-    commands_history: Vec<Vec<Vec<Command>>>,
-    tick: usize,
-    id_idx: HashMap<usize, usize>,
+    data: Data,
 }
 
 #[derive(Debug, Clone)]
@@ -53,7 +45,21 @@ pub enum Action {
     Transition(State),
     Toggle,
     Pause,
+    Paused,
     Resume,
+    Resumed,
+}
+
+struct Data {
+    id: usize,
+    pid: Option<Entity>,
+    ids: Vec<usize>,
+    seed: u64,
+    id_idx: HashMap<usize, usize>,
+    toggle: bool,
+    tick: usize,
+    commands: Vec<Command>,
+    commands_history: Vec<Vec<Vec<Command>>>,
 }
 
 struct KeyBindings {
@@ -65,12 +71,41 @@ struct KeyBindings {
     triangle: KeyCode,
     rectangle: KeyCode,
     pause: KeyCode,
+    shoot: KeyCode,
 }
 
-const TICK_DELAY: usize = 2;
+fn init_cosmos(
+    cosmos: &mut Cosmos,
+    commands_history: &mut Vec<Vec<Vec<Command>>>,
+    id_idx: &mut HashMap<usize, usize>,
+    ids: &[usize],
+    delay: usize,
+    spawn: Vec2<Flint>,
+) {
+    for tick in 0..delay {
+        commands_history.push(Vec::with_capacity(ids.len()));
+
+        for _ in 0..ids.len() {
+            commands_history[tick].push(Vec::new());
+        }
+    }
+
+    for (idx, id) in ids.iter().enumerate() {
+        cosmos.event(
+            &(CosmosIntent::Spawn {
+                id: Some(*id),
+                kind: SpawnKind::Triangle,
+                centroid: spawn,
+            })
+            .into(),
+        );
+
+        id_idx.insert(*id, idx);
+    }
+}
 
 impl Game {
-    pub fn new(id: usize, ids: Vec<usize>, seed: u64) -> Self {
+    pub fn new(id: usize, ids: Vec<usize>, seed: u64, delay: usize) -> Self {
         let bounds = Rectangle {
             x: Flint::new(50, 0),
             y: Flint::new(40, 0),
@@ -85,36 +120,30 @@ impl Game {
         let mut id_idx = HashMap::new();
         let mut commands_history = Vec::with_capacity(1024);
 
-        for tick in 0..TICK_DELAY {
-            commands_history.push(Vec::with_capacity(ids.len()));
-
-            for _ in 0..ids.len() {
-                commands_history[tick].push(Vec::new());
-            }
-        }
-
-        for (idx, id) in ids.iter().enumerate() {
-            cosmos.event(
-                &(CosmosIntent::Spawn {
-                    id: Some(*id),
-                    kind: SpawnKind::Triangle,
-                    centroid: spawn,
-                })
-                .into(),
-            );
-
-            id_idx.insert(*id, idx);
-        }
+        init_cosmos(
+            &mut cosmos,
+            &mut commands_history,
+            &mut id_idx,
+            &ids,
+            delay,
+            spawn,
+        );
 
         Self {
-            id,
-            pid: None,
-            ids,
-            seed,
+            data: Data {
+                id,
+                pid: None,
+                ids,
+                seed,
+                id_idx,
+                toggle: false,
+                tick: 0,
+                commands: Vec::new(),
+                commands_history,
+            },
             cosmos,
             camera: Camera::new(800.0, 600.0),
-            camera_target: Morph::one(Vec2::new(0.0, 0.0)),
-            toggle: false,
+            camera_target: Morph::one(spawn.into()),
             keybindings: KeyBindings {
                 up: KeyCode::ArrowUp,
                 down: KeyCode::ArrowDown,
@@ -124,27 +153,19 @@ impl Game {
                 triangle: KeyCode::Digit1,
                 rectangle: KeyCode::Digit2,
                 pause: KeyCode::KeyP,
+                shoot: KeyCode::Space,
             },
             state: State::Running,
             actions: Vec::new(),
-            commands: Vec::new(),
-            commands_history,
-            tick: 0,
-            id_idx,
         }
     }
 
     pub fn update(&mut self, bus: &mut Bus) {
-        self.prepare();
-        self.action(bus);
-        self.schedule();
+        while let Some(action) = self.actions.pop() {
+            self.state.handle(action, bus, &mut self.data);
+        }
 
-        let State::Running = self.state else {
-            return;
-        };
-
-        self.cosmos.update(bus, &self.commands_history[self.tick]);
-        self.tick += 1;
+        self.state.update(bus, &mut self.data, &mut self.cosmos);
     }
 
     pub fn input(&mut self, input: &Input) {
@@ -164,7 +185,7 @@ impl Game {
 
             // render cosmos using the camera
             let scope = renderer.begin(&self.camera);
-            self.cosmos.render(scope.renderer, self.toggle, alpha);
+            self.cosmos.render(scope.renderer, self.data.toggle, alpha);
         }
 
         // render ui
@@ -193,17 +214,17 @@ impl Game {
     fn event_network(&mut self, event: &NetworkEvent) {
         match event {
             NetworkEvent::Disconnected { id } => {
-                self.ids.retain(|x| x == id);
+                self.data.ids.retain(|x| x == id);
                 // TODO: signal the cosmos?
             }
             NetworkEvent::Commands { id, tick, commands } => {
                 self.commands(id, tick, commands);
             }
             NetworkEvent::Paused => {
-                self.actions.push(Action::Transition(State::Paused));
+                self.actions.push(Action::Paused);
             }
             NetworkEvent::Resumed => {
-                self.actions.push(Action::Transition(State::Running));
+                self.actions.push(Action::Resumed);
             }
             _ => (),
         }
@@ -214,8 +235,8 @@ impl Game {
             CosmosEvent::Spawned {
                 id: Some(id),
                 entity,
-            } if *id == self.id => {
-                self.pid = Some(*entity);
+            } if *id == self.data.id => {
+                self.data.pid = Some(*entity);
                 self.cosmos
                     .event(&(CosmosIntent::TrackDeath(*entity).into()));
                 self.cosmos
@@ -226,12 +247,12 @@ impl Game {
                     self.camera_target.new = body.new.centroid.into();
                 }
             }
-            CosmosEvent::TrackedDeath(entity) if Some(*entity) == self.pid => {
+            CosmosEvent::TrackedDeath(entity) if Some(*entity) == self.data.pid => {
                 // when player is dead, set the new as the old to prevent wobbling
-                self.pid = None;
+                self.data.pid = None;
                 self.camera_target.old = self.camera_target.new;
             }
-            CosmosEvent::TrackedMovement { entity, centroid } if Some(*entity) == self.pid => {
+            CosmosEvent::TrackedMovement { entity, centroid } if Some(*entity) == self.data.pid => {
                 self.camera_target.old = self.camera_target.new;
                 self.camera_target.new = (*centroid).into();
             }
@@ -239,86 +260,23 @@ impl Game {
         }
     }
 
-    fn action(&mut self, bus: &mut Bus) {
-        while let Some(action) = self.actions.pop() {
-            bus.send(GameEvent::Action(action.clone()));
-
-            match action {
-                Action::Transition(state) => {
-                    self.state = state;
-                    bus.send(GameEvent::Transitioned(self.state.clone()));
-                }
-                Action::Toggle => {
-                    self.toggle = !self.toggle;
-                    bus.send(GameEvent::Toggled(self.toggle));
-                }
-                Action::Pause => {
-                    bus.send(NetworkIntent::Pause);
-                }
-                Action::Resume => {
-                    bus.send(NetworkIntent::Resume);
-                }
-            }
-        }
-
-        let State::Running = self.state else {
-            return;
-        };
-
-        // always send the current commands for this tick
-        bus.send(NetworkIntent::Commands {
-            tick: self.tick + TICK_DELAY,
-            commands: std::mem::take(&mut self.commands),
-        });
-    }
-
     fn commands(&mut self, id: &usize, tick: &usize, commands: &[Command]) {
         // ensure we can support the requested tick
-        if self.commands_history.len() == *tick {
-            self.commands_history
-                .resize_with(self.commands_history.len() * 2, || {
-                    let mut v = Vec::with_capacity(self.ids.len());
+        if self.data.commands_history.len() == *tick {
+            self.data
+                .commands_history
+                .resize_with(self.data.commands_history.len() * 2, || {
+                    let mut v = Vec::with_capacity(self.data.ids.len());
                     v.push(Vec::new());
                     v
                 });
         }
 
-        let tick_commands = &mut self.commands_history[*tick];
-        let idx = self.id_idx[id];
+        let tick_commands = &mut self.data.commands_history[*tick];
+        let idx = self.data.id_idx[id];
 
         tick_commands[idx] = Vec::from(commands);
     }
-
-    fn prepare(&mut self) {
-        // ensure we have received all commands, otherwise stall
-        if self.commands_history.len() < self.tick {
-            let State::Stalling = self.state else {
-                self.actions.push(Action::Transition(State::Stalling));
-                return;
-            };
-
-            return;
-        }
-
-        let tick_commands = &self.commands_history[self.tick];
-
-        if tick_commands.len() < self.ids.len() {
-            let State::Stalling = self.state else {
-                self.actions.push(Action::Transition(State::Stalling));
-                return;
-            };
-
-            return;
-        }
-
-        let State::Stalling = self.state else {
-            return;
-        };
-
-        self.actions.push(Action::Transition(State::Running));
-    }
-
-    fn schedule(&mut self) {}
 
     fn input_running(&mut self, input: &Input) {
         if input.is_pressed(&self.keybindings.pause) {
@@ -330,7 +288,7 @@ impl Game {
         }
 
         if input.is_pressed(&self.keybindings.triangle) {
-            self.commands.push(Command::Spawn {
+            self.data.commands.push(Command::Spawn {
                 id: None,
                 kind: SpawnKind::Triangle,
                 centroid: Vec2::new(
@@ -341,7 +299,7 @@ impl Game {
         }
 
         if input.is_pressed(&self.keybindings.rectangle) {
-            self.commands.push(Command::Spawn {
+            self.data.commands.push(Command::Spawn {
                 id: None,
                 kind: SpawnKind::Rectangle,
                 centroid: Vec2::new(
@@ -351,24 +309,28 @@ impl Game {
             });
         }
 
-        let Some(pid) = self.pid else {
+        let Some(pid) = self.data.pid else {
             return;
         };
 
         if input.is_down(&self.keybindings.up) {
-            self.commands.push(Command::Accelerate(pid));
+            self.data.commands.push(Command::Accelerate(pid));
         }
 
         if input.is_down(&self.keybindings.down) {
-            self.commands.push(Command::Decelerate(pid));
+            self.data.commands.push(Command::Decelerate(pid));
         }
 
         if input.is_down(&self.keybindings.left) {
-            self.commands.push(Command::TurnLeft(pid));
+            self.data.commands.push(Command::TurnLeft(pid));
         }
 
         if input.is_down(&self.keybindings.right) {
-            self.commands.push(Command::TurnRight(pid));
+            self.data.commands.push(Command::TurnRight(pid));
+        }
+
+        if input.is_down(&self.keybindings.shoot) {
+            self.data.commands.push(Command::Shoot(pid));
         }
     }
 
@@ -377,6 +339,78 @@ impl Game {
     fn input_paused(&mut self, input: &Input) {
         if input.is_pressed(&self.keybindings.pause) {
             self.actions.push(Action::Resume);
+        }
+    }
+}
+
+impl State {
+    fn handle(&mut self, action: Action, bus: &mut Bus, data: &mut Data) {
+        bus.send(GameEvent::Action(action.clone()));
+
+        match (&self, action) {
+            (State::Running, Action::Pause) => {
+                bus.send(NetworkIntent::Pause);
+            }
+            (State::Running, Action::Paused) => {
+                self.handle(Action::Transition(State::Paused), bus, data);
+            }
+            (State::Paused, Action::Resume) => {
+                bus.send(NetworkIntent::Resume);
+            }
+            (State::Paused, Action::Resumed) => {
+                self.handle(Action::Transition(State::Running), bus, data);
+            }
+            (_, Action::Transition(state)) => {
+                *self = state;
+                bus.send(GameEvent::Transitioned(self.clone()));
+            }
+            (_, Action::Toggle) => {
+                data.toggle = !data.toggle;
+                bus.send(GameEvent::Toggled(data.toggle));
+            }
+            (_, _) => (),
+        }
+    }
+
+    fn update(&mut self, bus: &mut Bus, data: &mut Data, cosmos: &mut Cosmos) {
+        self.prepare(bus, data);
+
+        if !matches!(self, State::Running) {
+            return;
+        }
+
+        // always send the current commands for this tick
+        bus.send(NetworkIntent::Commands {
+            tick: data.tick,
+            commands: std::mem::take(&mut data.commands),
+        });
+
+        cosmos.update(bus, &data.commands_history[data.tick]);
+        data.tick += 1;
+    }
+
+    fn prepare(&mut self, bus: &mut Bus, data: &mut Data) {
+        // ensure we have received all commands, otherwise stall
+        let has_history = data.commands_history.len() > data.tick;
+        if !has_history {
+            if !matches!(self, State::Stalling) {
+                self.handle(Action::Transition(State::Stalling), bus, data);
+            }
+
+            return;
+        }
+
+        let has_commands = data.commands_history[data.tick].len() >= data.ids.len();
+        if !has_commands {
+            if !matches!(self, State::Stalling) {
+                self.handle(Action::Transition(State::Stalling), bus, data);
+            }
+
+            return;
+        }
+
+        if matches!(self, State::Stalling) {
+            self.handle(Action::Transition(State::Running), bus, data);
         }
     }
 }

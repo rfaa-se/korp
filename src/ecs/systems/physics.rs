@@ -21,6 +21,23 @@ pub fn hitbox(components: &mut Components) {
     }
 }
 
+pub fn collision(components: &mut Components) {
+    let hitboxes = components.logic.hitboxes.iter().collect::<Vec<_>>();
+
+    // TODO: use quadtree
+    for (i, (entity1, hitbox1)) in hitboxes.iter().enumerate() {
+        if i == hitboxes.len() - 1 {
+            break;
+        }
+
+        let (entity2, hitbox2) = hitboxes[i + 1];
+
+        if hitbox1.overlaps(hitbox2) {
+            // TODO: use SAT
+        }
+    }
+}
+
 pub fn morph_body_render(components: &mut Components) {
     for (_, body) in components.render.bodies.iter_mut() {
         body.old = body.new;
