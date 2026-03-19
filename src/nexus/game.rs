@@ -32,6 +32,7 @@ pub struct Game {
     state: State,
     actions: Vec<Action>,
     data: Data,
+    alpha: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -158,6 +159,7 @@ impl Game {
             },
             state: State::Running,
             actions: Vec::new(),
+            alpha: 0.0,
         }
     }
 
@@ -178,11 +180,21 @@ impl Game {
     }
 
     pub fn render(&mut self, renderer: &mut Renderer, alpha: f32) {
+        let alpha = match self.state {
+            State::Running => {
+                self.alpha = alpha;
+                alpha
+            }
+            State::Paused | State::Stalling => self.alpha,
+        };
+
         {
-            self.camera.reposition(Vec2::new(
-                lerp(self.camera_target.old.x, self.camera_target.new.x, alpha),
-                lerp(self.camera_target.old.y, self.camera_target.new.y, alpha),
-            ));
+            if matches!(self.state, State::Running) {
+                self.camera.reposition(Vec2::new(
+                    lerp(self.camera_target.old.x, self.camera_target.new.x, alpha),
+                    lerp(self.camera_target.old.y, self.camera_target.new.y, alpha),
+                ));
+            }
 
             // render cosmos using the camera
             let scope = renderer.begin(&self.camera);
@@ -215,7 +227,7 @@ impl Game {
     fn event_network(&mut self, event: &NetworkEvent) {
         match event {
             NetworkEvent::Disconnected { id } => {
-                self.data.ids.retain(|x| x == id);
+                self.data.ids.retain(|x| x != id);
                 // TODO: signal the cosmos?
             }
             NetworkEvent::Commands { id, tick, commands } => {
