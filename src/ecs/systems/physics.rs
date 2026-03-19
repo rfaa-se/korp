@@ -2,9 +2,8 @@ use korp_engine::{misc::Morph, shapes::Rectangle as EngineRectangle};
 use korp_math::{Flint, Vec2};
 
 use crate::ecs::{
+    commands::Command,
     components::{Body, Components, Rectangle, Shape, Triangle, traits::Hitboxable},
-    entities::Entity,
-    forge::Forge,
 };
 
 pub const COSMIC_DRAG: Flint = Flint::new(0, Flint::POINT_ONE * 2);
@@ -157,17 +156,18 @@ pub fn motion(components: &mut Components) {
 
 pub fn out_of_bounds(
     bounds: &EngineRectangle<Flint>,
-    forge: &mut Forge,
     components: &mut Components,
-    dead: &mut Vec<Entity>,
+    commands: &mut Vec<Command>,
 ) {
     for (&entity, hitbox) in components.logic.hitboxes.iter() {
         if !bounds.overlaps(hitbox) {
-            dead.push(entity);
+            commands.push(Command::Kill(entity));
         }
     }
+}
 
-    for entity in dead.iter() {
-        forge.destroy(*entity, components);
+pub fn constant_accelerate(components: &mut Components, commands: &mut Vec<Command>) {
+    for (&entity, _) in components.logic.constant_accelerators.iter() {
+        commands.push(Command::Accelerate(entity));
     }
 }

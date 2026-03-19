@@ -6,6 +6,7 @@ use crate::{
         components::{Components, Shape},
         entities::Entity,
         forge::Forge,
+        tracker::Tracker,
     },
 };
 
@@ -16,6 +17,7 @@ pub enum Command {
     TurnLeft(Entity),
     TurnRight(Entity),
     Shoot(Entity),
+    Kill(Entity),
     Spawn {
         id: Option<usize>,
         kind: SpawnKind,
@@ -30,18 +32,37 @@ pub enum SpawnKind {
 }
 
 impl Command {
-    pub fn execute(&self, components: &mut Components, forge: &mut Forge, bus: &mut Bus) {
+    pub fn execute(
+        &self,
+        components: &mut Components,
+        forge: &mut Forge,
+        tracker: &mut Tracker,
+        bus: &mut Bus,
+    ) {
         match self {
             Command::Accelerate(entity) => accelerate(entity, components),
             Command::Decelerate(entity) => decelerate(entity, components),
             Command::TurnLeft(entity) => turn_left(entity, components),
             Command::TurnRight(entity) => turn_right(entity, components),
             Command::Shoot(entity) => shoot(entity, components, forge, bus),
+            Command::Kill(entity) => kill(entity, components, forge, bus, tracker),
             Command::Spawn { id, kind, centroid } => {
                 spawn(id, kind, centroid, components, forge, bus)
             }
         }
     }
+}
+
+fn kill(
+    entity: &Entity,
+    components: &mut Components,
+    forge: &mut Forge,
+    bus: &mut Bus,
+    tracker: &mut Tracker,
+) {
+    forge.destroy(*entity, components);
+    bus.send(CosmosEvent::Died(*entity));
+    tracker.death(entity, bus);
 }
 
 fn accelerate(entity: &Entity, components: &mut Components) {

@@ -7,6 +7,7 @@ use crate::{
     ecs::{
         commands::{Command, SpawnKind},
         entities::Entity,
+        tracker::Track,
     },
     network,
     nexus::{self, game, lobby, menu},
@@ -31,13 +32,8 @@ pub enum IntentEvent<TIntent, TEvent> {
 
 #[derive(Debug)]
 pub enum CosmosIntent {
-    Spawn {
-        id: Option<usize>,
-        kind: SpawnKind,
-        centroid: Vec2<Flint>,
-    },
-    TrackDeath(Entity),
-    TrackMovement(Entity),
+    Command(Command),
+    Track(Track),
 }
 
 #[derive(Debug)]

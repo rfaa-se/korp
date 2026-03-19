@@ -2,7 +2,7 @@ use korp_engine::{color::Color, misc::Morph};
 use korp_math::{Flint, Vec2};
 
 use crate::ecs::{
-    components::{Body, Brain, Components, Motion, Rectangle, Shape, Triangle},
+    components::{Body, Components, ConstantAccelerator, Motion, Rectangle, Shape, Triangle},
     entities::{Entity, EntityFactory},
     systems::COSMIC_DRAG,
 };
@@ -122,7 +122,10 @@ impl Forge {
             },
         );
 
-        components.logic.brains.projectiles.insert(entity, Brain);
+        components
+            .logic
+            .constant_accelerators
+            .insert(entity, ConstantAccelerator);
 
         entity
     }

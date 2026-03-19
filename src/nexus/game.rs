@@ -20,6 +20,7 @@ use crate::{
         commands::{Command, SpawnKind},
         cosmos::Cosmos,
         entities::Entity,
+        tracker::Track,
     },
 };
 
@@ -92,11 +93,11 @@ fn init_cosmos(
 
     for (idx, id) in ids.iter().enumerate() {
         cosmos.event(
-            &(CosmosIntent::Spawn {
+            &(CosmosIntent::Command(Command::Spawn {
                 id: Some(*id),
                 kind: SpawnKind::Triangle,
                 centroid: spawn,
-            })
+            }))
             .into(),
         );
 
@@ -238,9 +239,9 @@ impl Game {
             } if *id == self.data.id => {
                 self.data.pid = Some(*entity);
                 self.cosmos
-                    .event(&(CosmosIntent::TrackDeath(*entity).into()));
+                    .event(&(CosmosIntent::Track(Track::Death(*entity)).into()));
                 self.cosmos
-                    .event(&(CosmosIntent::TrackMovement(*entity).into()));
+                    .event(&(CosmosIntent::Track(Track::Movement(*entity)).into()));
 
                 if let Some(body) = self.cosmos.components().logic.bodies.get(entity) {
                     self.camera_target.old = body.old.centroid.into();

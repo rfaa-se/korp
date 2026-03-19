@@ -4,14 +4,14 @@ use korp_math::Flint;
 use crate::{
     bus::{
         Bus,
-        events::{CosmosEvent, CosmosIntent, Event, IntentEvent},
+        events::{CosmosIntent, Event, IntentEvent},
     },
     ecs::{
         commands::Command,
         components::Components,
-        entities::Entity,
         forge::Forge,
         systems::{Executor, Observer},
+        tracker::Tracker,
     },
 };
 
@@ -22,9 +22,7 @@ pub struct Cosmos {
     executor: Executor,
     observer: Observer,
     commands: Vec<Command>,
-    dead: Vec<Entity>,
-    tracked_death: Vec<Entity>,
-    tracked_movement: Vec<Entity>,
+    tracker: Tracker,
 }
 
 impl Cosmos {
@@ -36,24 +34,17 @@ impl Cosmos {
             executor: Executor::new(),
             observer: Observer::new(),
             commands: Vec::new(),
-            dead: Vec::new(),
-            tracked_death: Vec::new(),
-            tracked_movement: Vec::new(),
+            tracker: Tracker::new(),
         }
     }
 
     pub fn update(&mut self, bus: &mut Bus, commands: &[Vec<Command>]) {
         self.execute_commands(bus, commands);
 
-        self.executor.execute(
-            &self.bounds,
-            &mut self.components,
-            &mut self.forge,
-            &mut self.dead,
-            &mut self.commands,
-        );
+        self.executor
+            .execute(&self.bounds, &mut self.components, &mut self.commands);
 
-        self.send_events(bus);
+        self.tracker.update(&self.components, bus);
     }
 
     pub fn render(&self, renderer: &mut Renderer, toggle: bool, alpha: f32) {
@@ -67,13 +58,12 @@ impl Cosmos {
         };
 
         match event {
-            CosmosIntent::TrackDeath(entity) => self.tracked_death.push(*entity),
-            CosmosIntent::TrackMovement(entity) => self.tracked_movement.push(*entity),
-            CosmosIntent::Spawn { id, kind, centroid } => self.commands.push(Command::Spawn {
-                id: *id,
-                kind: *kind,
-                centroid: *centroid,
-            }),
+            CosmosIntent::Command(command) => {
+                self.commands.push(command.clone());
+            }
+            CosmosIntent::Track(track) => {
+                self.tracker.track(track);
+            }
         }
     }
 
@@ -83,39 +73,21 @@ impl Cosmos {
 
     fn execute_commands(&mut self, bus: &mut Bus, commands: &[Vec<Command>]) {
         for command in self.commands.drain(..) {
-            command.execute(&mut self.components, &mut self.forge, bus);
+            command.execute(
+                &mut self.components,
+                &mut self.forge,
+                &mut self.tracker,
+                bus,
+            );
         }
 
         for command in commands.iter().flatten() {
-            command.execute(&mut self.components, &mut self.forge, bus);
-        }
-    }
-
-    fn send_events(&mut self, bus: &mut Bus) {
-        for entity in self.dead.drain(..) {
-            bus.send(CosmosEvent::Died(entity));
-
-            self.tracked_death.retain_mut(|x| {
-                if *x == entity {
-                    bus.send(CosmosEvent::TrackedDeath(entity));
-
-                    // no need to keep tracking entities if they are dead
-                    self.tracked_movement.retain_mut(|y| *y != entity);
-
-                    return false;
-                }
-
-                true
-            });
-        }
-
-        for entity in self.tracked_movement.iter() {
-            if let Some(body) = self.components.logic.bodies.get(&entity) {
-                bus.send(CosmosEvent::TrackedMovement {
-                    entity: *entity,
-                    centroid: body.new.centroid,
-                });
-            }
+            command.execute(
+                &mut self.components,
+                &mut self.forge,
+                &mut self.tracker,
+                bus,
+            );
         }
     }
 }
