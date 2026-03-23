@@ -20,6 +20,7 @@ impl Bus {
             nexus.event(&event);
             network.event(&event);
 
+            continue;
             // let's not print these...
             match event {
                 Event::Cosmos(IntentEvent::Event(CosmosEvent::TrackedMovement { .. })) => continue,

@@ -1,9 +1,12 @@
 use korp_engine::{misc::Morph, shapes::Rectangle as EngineRectangle};
 use korp_math::{Flint, Vec2};
 
-use crate::ecs::{
-    commands::Command,
-    components::{Body, Components, Rectangle, Shape, Triangle, traits::Hitboxable},
+use crate::{
+    ecs::{
+        commands::Command,
+        components::{Body, Components, Rectangle, Shape, Triangle, traits::Hitboxable},
+    },
+    quadtree::Quadtree,
 };
 
 pub const COSMIC_DRAG: Flint = Flint::new(0, Flint::POINT_ONE * 2);
@@ -20,19 +23,35 @@ pub fn hitbox(components: &mut Components) {
     }
 }
 
-pub fn collision(components: &mut Components) {
-    let hitboxes = components.logic.hitboxes.iter().collect::<Vec<_>>();
+pub fn collision(components: &mut Components, quadtree: &Quadtree) {
+    for node in quadtree.nodes() {
+        let grouping = node
+            .content()
+            .iter()
+            .filter_map(|(entity, hitbox)| {
+                if let Some(filter) = components.logic.collision_filters.get(entity) {
+                    return Some((entity, hitbox, filter));
+                }
 
-    // TODO: use quadtree
-    for (i, (entity1, hitbox1)) in hitboxes.iter().enumerate() {
-        if i == hitboxes.len() - 1 {
-            break;
-        }
+                None
+            })
+            .collect::<Vec<_>>();
 
-        let (entity2, hitbox2) = hitboxes[i + 1];
+        for (i, (entity1, hitbox1, filter1)) in grouping.iter().enumerate() {
+            if i == grouping.len() - 1 {
+                break;
+            }
 
-        if hitbox1.overlaps(hitbox2) {
-            // TODO: use SAT
+            let (entity2, hitbox2, filter2) = grouping[i + 1];
+
+            if !filter1.should_collide(filter2) {
+                continue;
+            }
+
+            if hitbox1.overlaps(hitbox2) {
+                // println!("COLLIDING {:?} {:?}", entity1, entity2);
+                // TODO: use SAT
+            }
         }
     }
 }
@@ -94,6 +113,18 @@ pub fn hitbox_render(components: &mut Components) {
                 .insert(entity, Morph::one(rectangle));
         }
     }
+}
+
+pub fn quadtree_nodes_render(components: &mut Components, quadtree: &Quadtree) {
+    components.render.quadtree.clear();
+
+    for node in quadtree.nodes() {
+        components.render.quadtree.push(node.bounds().into());
+    }
+}
+
+pub fn cosmos_bounds_render(components: &mut Components, bounds: &EngineRectangle<Flint>) {
+    components.render.cosmos = (*bounds).into();
 }
 
 pub fn motion(components: &mut Components) {
@@ -169,5 +200,13 @@ pub fn out_of_bounds(
 pub fn constant_accelerate(components: &mut Components, commands: &mut Vec<Command>) {
     for (&entity, _) in components.logic.constant_accelerators.iter() {
         commands.push(Command::Accelerate(entity));
+    }
+}
+
+pub fn rebuild_quadtree(components: &Components, quadtree: &mut Quadtree) {
+    quadtree.clear();
+
+    for (entity, hitbox) in components.logic.hitboxes.iter() {
+        quadtree.insert(*entity, *hitbox);
     }
 }

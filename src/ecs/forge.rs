@@ -2,7 +2,9 @@ use korp_engine::{color::Color, misc::Morph};
 use korp_math::{Flint, Vec2};
 
 use crate::ecs::{
-    components::{Body, Components, ConstantAccelerator, Motion, Rectangle, Shape, Triangle},
+    components::{
+        Body, CollisionFilter, Components, ConstantAccelerator, Motion, Rectangle, Shape, Triangle,
+    },
     entities::{Entity, EntityFactory},
     systems::COSMIC_DRAG,
 };
@@ -53,6 +55,16 @@ impl Forge {
             },
         );
 
+        components.logic.collision_filters.insert(
+            entity,
+            CollisionFilter {
+                category: CollisionFilter::TRIANGLE,
+                mask: CollisionFilter::PROJECTILE
+                    | CollisionFilter::TRIANGLE
+                    | CollisionFilter::RECTANGLE,
+            },
+        );
+
         entity
     }
 
@@ -82,6 +94,16 @@ impl Forge {
                 rotation_speed_maximum: Flint::new(16, 0),
                 rotation_speed_minimum: -Flint::new(16, 0),
                 rotation_acceleration: Flint::new(1, 0),
+            },
+        );
+
+        components.logic.collision_filters.insert(
+            entity,
+            CollisionFilter {
+                category: CollisionFilter::RECTANGLE,
+                mask: CollisionFilter::PROJECTILE
+                    | CollisionFilter::TRIANGLE
+                    | CollisionFilter::RECTANGLE,
             },
         );
 
@@ -126,6 +148,14 @@ impl Forge {
             .logic
             .constant_accelerators
             .insert(entity, ConstantAccelerator);
+
+        components.logic.collision_filters.insert(
+            entity,
+            CollisionFilter {
+                category: CollisionFilter::PROJECTILE,
+                mask: CollisionFilter::TRIANGLE | CollisionFilter::RECTANGLE,
+            },
+        );
 
         entity
     }

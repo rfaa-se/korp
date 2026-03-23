@@ -3,6 +3,7 @@ use korp_math::{Flint, Vec2};
 
 use crate::ecs::{entities::Entity, sparse_set::SparseSet};
 
+pub mod impls;
 pub mod traits;
 
 pub struct Logic {
@@ -10,11 +11,14 @@ pub struct Logic {
     pub hitboxes: SparseSet<EngineRectangle<Flint>>,
     pub motions: SparseSet<Motion>,
     pub constant_accelerators: SparseSet<ConstantAccelerator>,
+    pub collision_filters: SparseSet<CollisionFilter>,
 }
 
 pub struct Render {
     pub bodies: SparseSet<Morph<Body<f32>>>,
     pub hitboxes: SparseSet<Morph<EngineRectangle<f32>>>,
+    pub cosmos: EngineRectangle<f32>,
+    pub quadtree: Vec<EngineRectangle<f32>>,
 }
 
 pub struct Components {
@@ -23,17 +27,20 @@ pub struct Components {
 }
 
 impl Components {
-    pub fn new() -> Self {
+    pub fn new(bounds: EngineRectangle<Flint>) -> Self {
         Self {
             logic: Logic {
                 bodies: SparseSet::new(u16::MAX as usize),
                 hitboxes: SparseSet::new(u16::MAX as usize),
                 motions: SparseSet::new(u16::MAX as usize),
                 constant_accelerators: SparseSet::new(u16::MAX as usize),
+                collision_filters: SparseSet::new(u16::MAX as usize),
             },
             render: Render {
                 bodies: SparseSet::new(u16::MAX as usize),
                 hitboxes: SparseSet::new(u16::MAX as usize),
+                cosmos: bounds.into(),
+                quadtree: Vec::new(),
             },
         }
     }
@@ -43,6 +50,7 @@ impl Components {
         self.logic.hitboxes.remove(entity);
         self.logic.motions.remove(entity);
         self.logic.constant_accelerators.remove(entity);
+        self.logic.collision_filters.remove(entity);
 
         self.render.bodies.remove(entity);
         self.render.hitboxes.remove(entity);
@@ -88,3 +96,8 @@ pub struct Rectangle<T> {
 }
 
 pub struct ConstantAccelerator;
+
+pub struct CollisionFilter {
+    pub category: u32,
+    pub mask: u32,
+}

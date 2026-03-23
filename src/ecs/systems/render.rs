@@ -1,5 +1,5 @@
 use korp_engine::{color::Color, renderer::Renderer, shapes::Rectangle};
-use korp_math::{Flint, Vec2, lerp};
+use korp_math::{Vec2, lerp};
 
 use crate::ecs::components::{Components, traits::Renderable};
 
@@ -24,22 +24,24 @@ pub fn hitbox(components: &Components, renderer: &mut Renderer, alpha: f32) {
     }
 }
 
-pub fn cosmos(dimensions: &Rectangle<Flint>, renderer: &mut Renderer) {
-    let dimensions = Rectangle {
-        x: dimensions.x.into(),
-        y: dimensions.y.into(),
-        width: dimensions.width.into(),
-        height: dimensions.height.into(),
-    };
-
+pub fn cosmos_bounds(components: &Components, renderer: &mut Renderer) {
+    let bounds = components.render.cosmos;
     let rotation = Vec2::new(1.0, 0.0);
-
+    let color = Color::RED;
     let origin = Vec2::new(
-        dimensions.x + dimensions.width * 0.5,
-        dimensions.y + dimensions.height * 0.5,
+        bounds.x + bounds.width * 0.5,
+        bounds.y + bounds.height * 0.5,
     );
 
-    let color = Color::RED;
+    renderer.draw_rectangle_lines(bounds, rotation, origin, color);
+}
 
-    renderer.draw_rectangle_lines(dimensions, rotation, origin, color);
+pub fn quadtree_nodes(components: &Components, renderer: &mut Renderer) {
+    for node in components.render.quadtree.iter() {
+        let rotation = Vec2::new(1.0, 0.0);
+        let color = Color::RED;
+        let origin = Vec2::new(node.x + node.width * 0.5, node.y + node.height * 0.5);
+
+        renderer.draw_rectangle_lines(*node, rotation, origin, color);
+    }
 }

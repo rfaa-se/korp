@@ -111,8 +111,8 @@ impl Game {
         let bounds = Rectangle {
             x: Flint::new(50, 0),
             y: Flint::new(40, 0),
-            width: Flint::new(700, 0),
-            height: Flint::new(400, 0),
+            width: Flint::new(1700, 0),
+            height: Flint::new(1400, 0),
         };
         let spawn = Vec2::new(
             bounds.x + bounds.width / Flint::from_i16(2),

@@ -177,12 +177,12 @@ impl<T: Core> winit::application::ApplicationHandler for Engine<T> {
                 self.fps += 1;
 
                 if self.timer >= Self::ONE {
-                    // println!(
-                    //     "tps {} | fps {} | elapsed {}",
-                    //     self.tps,
-                    //     self.fps,
-                    //     self.elapsed.as_secs_f32()
-                    // );
+                    println!(
+                        "tps {} | fps {} | elapsed {}",
+                        self.tps,
+                        self.fps,
+                        self.elapsed.as_secs_f32()
+                    );
 
                     self.tps = 0;
                     self.fps = 0;

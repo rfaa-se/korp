@@ -1,4 +1,7 @@
-use crate::ecs::{commands::Command, components::Components};
+use crate::{
+    ecs::{commands::Command, components::Components},
+    quadtree::Quadtree,
+};
 use korp_engine::{renderer::Renderer, shapes::Rectangle};
 use korp_math::Flint;
 
@@ -20,13 +23,15 @@ impl Executor {
         bounds: &Rectangle<Flint>,
         components: &mut Components,
         commands: &mut Vec<Command>,
+        quadtree: &mut Quadtree,
     ) {
         use physics::*;
 
         morph_body(components);
         motion(components);
         hitbox(components);
-        collision(components);
+        rebuild_quadtree(components, quadtree);
+        collision(components, quadtree);
         out_of_bounds(bounds, components, commands);
         constant_accelerate(components, commands);
 
@@ -34,6 +39,8 @@ impl Executor {
         morph_hitbox_render(components);
         body_render(components);
         hitbox_render(components);
+        quadtree_nodes_render(components, quadtree);
+        cosmos_bounds_render(components, bounds);
     }
 }
 
@@ -46,13 +53,13 @@ impl Observer {
         &self,
         components: &Components,
         renderer: &mut Renderer,
-        bounds: &Rectangle<Flint>,
         toggle: bool,
         alpha: f32,
     ) {
         use render::*;
 
-        cosmos(bounds, renderer);
+        cosmos_bounds(components, renderer);
+        quadtree_nodes(components, renderer);
         body(components, renderer, toggle, alpha);
         hitbox(components, renderer, alpha);
     }
