@@ -1,5 +1,5 @@
 use crate::{
-    ecs::{commands::Command, components::Components},
+    ecs::{commands::Command, components::Components, cosmos::Config},
     quadtree::Quadtree,
 };
 use korp_engine::{renderer::Renderer, shapes::Rectangle};
@@ -53,14 +53,21 @@ impl Observer {
         &self,
         components: &Components,
         renderer: &mut Renderer,
-        toggle: bool,
+        config: &Config,
         alpha: f32,
     ) {
         use render::*;
 
         cosmos_bounds(components, renderer);
-        quadtree_nodes(components, renderer);
-        body(components, renderer, toggle, alpha);
-        hitbox(components, renderer, alpha);
+
+        if config.draw_quadtree {
+            quadtree_nodes(components, renderer);
+        }
+
+        body(components, renderer, config.draw_filled, alpha);
+
+        if config.draw_hitbox {
+            hitbox(components, renderer, alpha);
+        }
     }
 }

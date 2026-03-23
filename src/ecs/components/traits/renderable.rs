@@ -12,7 +12,7 @@ pub trait Renderable {
 }
 
 impl Renderable for Morph<Body<f32>> {
-    fn render(&self, renderer: &mut Renderer, toggle: bool, alpha: f32) {
+    fn render(&self, renderer: &mut Renderer, draw_filled: bool, alpha: f32) {
         let rotation = Vec2::from_angle(lerp_angle(
             self.old.rotation.angle(),
             self.new.rotation.angle(),
@@ -46,10 +46,10 @@ impl Renderable for Morph<Body<f32>> {
 
                 let shape = Triangle::from(top, left, right, centroid);
 
-                if toggle {
-                    renderer.draw_triangle_lines(shape, rotation, centroid, color);
-                } else {
+                if draw_filled {
                     renderer.draw_triangle_filled(shape, rotation, centroid, color);
+                } else {
+                    renderer.draw_triangle_lines(shape, rotation, centroid, color);
                 }
             }
             (Shape::Rectangle(old), Shape::Rectangle(new)) => {
@@ -57,10 +57,10 @@ impl Renderable for Morph<Body<f32>> {
                 let height = lerp(old.height, new.height, alpha);
                 let shape = Rectangle::from(width, height, centroid);
 
-                if toggle {
-                    renderer.draw_rectangle_lines(shape, rotation, centroid, color);
-                } else {
+                if draw_filled {
                     renderer.draw_rectangle_filled(shape, rotation, centroid, color);
+                } else {
+                    renderer.draw_rectangle_lines(shape, rotation, centroid, color);
                 }
             }
             // TODO: can't currently morph between different shapes, draw old or new?

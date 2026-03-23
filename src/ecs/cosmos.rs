@@ -16,6 +16,18 @@ use crate::{
     quadtree::Quadtree,
 };
 
+#[derive(Debug, Clone)]
+pub enum Configure {
+    Toggle(Toggle),
+}
+
+#[derive(Debug, Clone)]
+pub enum Toggle {
+    DrawFilled,
+    DrawQuadtree,
+    DrawHitbox,
+}
+
 pub struct Cosmos {
     bounds: Rectangle<Flint>,
     components: Components,
@@ -25,6 +37,13 @@ pub struct Cosmos {
     commands: Vec<Command>,
     tracker: Tracker,
     quadtree: Quadtree,
+    config: Config,
+}
+
+pub struct Config {
+    pub draw_filled: bool,
+    pub draw_quadtree: bool,
+    pub draw_hitbox: bool,
 }
 
 impl Cosmos {
@@ -38,6 +57,11 @@ impl Cosmos {
             commands: Vec::new(),
             tracker: Tracker::new(),
             quadtree: Quadtree::new(bounds, 12, 8),
+            config: Config {
+                draw_filled: false,
+                draw_quadtree: false,
+                draw_hitbox: false,
+            },
         }
     }
 
@@ -54,9 +78,9 @@ impl Cosmos {
         self.tracker.update(&self.components, bus);
     }
 
-    pub fn render(&self, renderer: &mut Renderer, toggle: bool, alpha: f32) {
+    pub fn render(&self, renderer: &mut Renderer, alpha: f32) {
         self.observer
-            .observe(&self.components, renderer, toggle, alpha);
+            .observe(&self.components, renderer, &self.config, alpha);
     }
 
     pub fn event(&mut self, event: &Event) {
@@ -71,6 +95,14 @@ impl Cosmos {
             CosmosIntent::Track(track) => {
                 self.tracker.track(track);
             }
+            CosmosIntent::Configure(configure) => match configure {
+                // TODO: impl Config { fn configure } ?
+                Configure::Toggle(toggle) => match toggle {
+                    Toggle::DrawFilled => self.config.draw_filled = !self.config.draw_filled,
+                    Toggle::DrawQuadtree => self.config.draw_quadtree = !self.config.draw_quadtree,
+                    Toggle::DrawHitbox => self.config.draw_hitbox = !self.config.draw_hitbox,
+                },
+            },
         }
     }
 

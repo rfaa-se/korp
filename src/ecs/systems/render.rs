@@ -3,9 +3,9 @@ use korp_math::{Vec2, lerp};
 
 use crate::ecs::components::{Components, traits::Renderable};
 
-pub fn body(components: &Components, renderer: &mut Renderer, toggle: bool, alpha: f32) {
+pub fn body(components: &Components, renderer: &mut Renderer, draw_filled: bool, alpha: f32) {
     for (_, body) in components.render.bodies.iter() {
-        body.render(renderer, toggle, alpha);
+        body.render(renderer, draw_filled, alpha);
     }
 }
 

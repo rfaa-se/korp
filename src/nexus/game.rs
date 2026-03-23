@@ -18,7 +18,7 @@ use crate::{
     },
     ecs::{
         commands::{Command, SpawnKind},
-        cosmos::Cosmos,
+        cosmos::{Configure, Cosmos, Toggle},
         entities::Entity,
         tracker::Track,
     },
@@ -45,7 +45,7 @@ pub enum State {
 #[derive(Debug, Clone)]
 pub enum Action {
     Transition(State),
-    Toggle,
+    Toggle(Toggle),
     Pause,
     Paused,
     Resume,
@@ -58,7 +58,6 @@ struct Data {
     ids: Vec<usize>,
     seed: u64,
     id_idx: HashMap<usize, usize>,
-    toggle: bool,
     tick: usize,
     commands: Vec<Command>,
     commands_history: Vec<Vec<Vec<Command>>>,
@@ -69,7 +68,9 @@ struct KeyBindings {
     down: KeyCode,
     left: KeyCode,
     right: KeyCode,
-    toggle: KeyCode,
+    toggle_draw_filled: KeyCode,
+    toggle_draw_quadtree: KeyCode,
+    toggle_draw_hitbox: KeyCode,
     triangle: KeyCode,
     rectangle: KeyCode,
     pause: KeyCode,
@@ -138,7 +139,6 @@ impl Game {
                 ids,
                 seed,
                 id_idx,
-                toggle: false,
                 tick: 0,
                 commands: Vec::new(),
                 commands_history,
@@ -151,7 +151,9 @@ impl Game {
                 down: KeyCode::ArrowDown,
                 left: KeyCode::ArrowLeft,
                 right: KeyCode::ArrowRight,
-                toggle: KeyCode::F1,
+                toggle_draw_filled: KeyCode::F1,
+                toggle_draw_quadtree: KeyCode::F2,
+                toggle_draw_hitbox: KeyCode::F3,
                 triangle: KeyCode::Digit1,
                 rectangle: KeyCode::Digit2,
                 pause: KeyCode::KeyP,
@@ -198,7 +200,7 @@ impl Game {
 
             // render cosmos using the camera
             let scope = renderer.begin(&self.camera);
-            self.cosmos.render(scope.renderer, self.data.toggle, alpha);
+            self.cosmos.render(scope.renderer, alpha);
         }
 
         // render ui
@@ -296,8 +298,16 @@ impl Game {
             self.actions.push(Action::Pause);
         }
 
-        if input.is_pressed(&self.keybindings.toggle) {
-            self.actions.push(Action::Toggle);
+        if input.is_pressed(&self.keybindings.toggle_draw_filled) {
+            self.actions.push(Action::Toggle(Toggle::DrawFilled));
+        }
+
+        if input.is_pressed(&self.keybindings.toggle_draw_quadtree) {
+            self.actions.push(Action::Toggle(Toggle::DrawQuadtree));
+        }
+
+        if input.is_pressed(&self.keybindings.toggle_draw_hitbox) {
+            self.actions.push(Action::Toggle(Toggle::DrawHitbox));
         }
 
         if input.is_pressed(&self.keybindings.triangle) {
@@ -377,9 +387,8 @@ impl State {
                 *self = state;
                 bus.send(GameEvent::Transitioned(self.clone()));
             }
-            (_, Action::Toggle) => {
-                data.toggle = !data.toggle;
-                bus.send(GameEvent::Toggled(data.toggle));
+            (_, Action::Toggle(toggle)) => {
+                bus.send(CosmosIntent::Configure(Configure::Toggle(toggle)));
             }
             (_, _) => (),
         }

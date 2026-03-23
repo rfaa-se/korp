@@ -4,7 +4,7 @@ use korp_engine::CoreEvent;
 use korp_math::{Flint, Vec2};
 
 use crate::{
-    ecs::{commands::Command, entities::Entity, tracker::Track},
+    ecs::{commands::Command, cosmos::Configure, entities::Entity, tracker::Track},
     network,
     nexus::{self, game, lobby, menu},
 };
@@ -30,6 +30,7 @@ pub enum IntentEvent<TIntent, TEvent> {
 pub enum CosmosIntent {
     Command(Command),
     Track(Track),
+    Configure(Configure),
 }
 
 #[derive(Debug)]
