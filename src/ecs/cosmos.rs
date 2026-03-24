@@ -37,10 +37,10 @@ pub struct Cosmos {
     commands: Vec<Command>,
     tracker: Tracker,
     quadtree: Quadtree,
-    config: Config,
+    configuration: Configuration,
 }
 
-pub struct Config {
+pub struct Configuration {
     pub draw_filled: bool,
     pub draw_quadtree: bool,
     pub draw_hitbox: bool,
@@ -57,7 +57,7 @@ impl Cosmos {
             commands: Vec::new(),
             tracker: Tracker::new(),
             quadtree: Quadtree::new(bounds, 12, 8),
-            config: Config {
+            configuration: Configuration {
                 draw_filled: false,
                 draw_quadtree: false,
                 draw_hitbox: false,
@@ -69,7 +69,7 @@ impl Cosmos {
         self.execute_commands(bus, commands);
 
         self.executor.execute(
-            &self.bounds,
+            self.bounds,
             &mut self.components,
             &mut self.commands,
             &mut self.quadtree,
@@ -80,7 +80,7 @@ impl Cosmos {
 
     pub fn render(&self, renderer: &mut Renderer, alpha: f32) {
         self.observer
-            .observe(&self.components, renderer, &self.config, alpha);
+            .observe(&self.components, &self.configuration, renderer, alpha);
     }
 
     pub fn event(&mut self, event: &Event) {
@@ -95,14 +95,9 @@ impl Cosmos {
             CosmosIntent::Track(track) => {
                 self.tracker.track(track);
             }
-            CosmosIntent::Configure(configure) => match configure {
-                // TODO: impl Config { fn configure } ?
-                Configure::Toggle(toggle) => match toggle {
-                    Toggle::DrawFilled => self.config.draw_filled = !self.config.draw_filled,
-                    Toggle::DrawQuadtree => self.config.draw_quadtree = !self.config.draw_quadtree,
-                    Toggle::DrawHitbox => self.config.draw_hitbox = !self.config.draw_hitbox,
-                },
-            },
+            CosmosIntent::Configure(configure) => {
+                self.configuration.configure(configure);
+            }
         }
     }
 
@@ -127,6 +122,18 @@ impl Cosmos {
                 &mut self.tracker,
                 bus,
             );
+        }
+    }
+}
+
+impl Configuration {
+    fn configure(&mut self, configure: &Configure) {
+        match configure {
+            Configure::Toggle(toggle) => match toggle {
+                Toggle::DrawFilled => self.draw_filled = !self.draw_filled,
+                Toggle::DrawQuadtree => self.draw_quadtree = !self.draw_quadtree,
+                Toggle::DrawHitbox => self.draw_hitbox = !self.draw_hitbox,
+            },
         }
     }
 }

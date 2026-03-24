@@ -25,7 +25,7 @@ pub fn hitbox(components: &Components, renderer: &mut Renderer, alpha: f32) {
 }
 
 pub fn cosmos_bounds(components: &Components, renderer: &mut Renderer) {
-    let bounds = components.render.cosmos;
+    let bounds = components.render.cosmos_bounds;
     let rotation = Vec2::new(1.0, 0.0);
     let color = Color::RED;
     let origin = Vec2::new(
@@ -37,7 +37,7 @@ pub fn cosmos_bounds(components: &Components, renderer: &mut Renderer) {
 }
 
 pub fn quadtree_nodes(components: &Components, renderer: &mut Renderer) {
-    for node in components.render.quadtree.iter() {
+    for node in components.render.quadtree_nodes.iter() {
         let rotation = Vec2::new(1.0, 0.0);
         let color = Color::RED;
         let origin = Vec2::new(node.x + node.width * 0.5, node.y + node.height * 0.5);

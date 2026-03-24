@@ -37,12 +37,12 @@ pub fn collision(components: &mut Components, quadtree: &Quadtree) {
             })
             .collect::<Vec<_>>();
 
-        for (i, (entity1, hitbox1, filter1)) in grouping.iter().enumerate() {
+        for (i, (_entity1, hitbox1, filter1)) in grouping.iter().enumerate() {
             if i == grouping.len() - 1 {
                 break;
             }
 
-            let (entity2, hitbox2, filter2) = grouping[i + 1];
+            let (_entity2, hitbox2, filter2) = grouping[i + 1];
 
             if !filter1.should_collide(filter2) {
                 continue;
@@ -116,15 +116,15 @@ pub fn hitbox_render(components: &mut Components) {
 }
 
 pub fn quadtree_nodes_render(components: &mut Components, quadtree: &Quadtree) {
-    components.render.quadtree.clear();
+    components.render.quadtree_nodes.clear();
 
     for node in quadtree.nodes() {
-        components.render.quadtree.push(node.bounds().into());
+        components.render.quadtree_nodes.push(node.bounds().into());
     }
 }
 
-pub fn cosmos_bounds_render(components: &mut Components, bounds: &EngineRectangle<Flint>) {
-    components.render.cosmos = (*bounds).into();
+pub fn cosmos_bounds_render(components: &mut Components, cosmos_bounds: EngineRectangle<Flint>) {
+    components.render.cosmos_bounds = cosmos_bounds.into();
 }
 
 pub fn motion(components: &mut Components) {
@@ -185,8 +185,8 @@ pub fn motion(components: &mut Components) {
     }
 }
 
-pub fn out_of_bounds(
-    bounds: &EngineRectangle<Flint>,
+pub fn out_of_cosmos_bounds(
+    bounds: EngineRectangle<Flint>,
     components: &mut Components,
     commands: &mut Vec<Command>,
 ) {

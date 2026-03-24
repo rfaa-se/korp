@@ -1,3 +1,5 @@
+#![allow(dead_code)] // not all events are actually used per se, but they might be logged
+
 use std::net::IpAddr;
 
 use korp_engine::CoreEvent;

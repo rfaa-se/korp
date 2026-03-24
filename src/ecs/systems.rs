@@ -1,5 +1,5 @@
 use crate::{
-    ecs::{commands::Command, components::Components, cosmos::Config},
+    ecs::{commands::Command, components::Components, cosmos::Configuration},
     quadtree::Quadtree,
 };
 use korp_engine::{renderer::Renderer, shapes::Rectangle};
@@ -20,7 +20,7 @@ impl Executor {
 
     pub fn execute(
         &mut self,
-        bounds: &Rectangle<Flint>,
+        cosmos_bounds: Rectangle<Flint>,
         components: &mut Components,
         commands: &mut Vec<Command>,
         quadtree: &mut Quadtree,
@@ -32,7 +32,7 @@ impl Executor {
         hitbox(components);
         rebuild_quadtree(components, quadtree);
         collision(components, quadtree);
-        out_of_bounds(bounds, components, commands);
+        out_of_cosmos_bounds(cosmos_bounds, components, commands);
         constant_accelerate(components, commands);
 
         morph_body_render(components);
@@ -40,7 +40,7 @@ impl Executor {
         body_render(components);
         hitbox_render(components);
         quadtree_nodes_render(components, quadtree);
-        cosmos_bounds_render(components, bounds);
+        cosmos_bounds_render(components, cosmos_bounds);
     }
 }
 
@@ -52,21 +52,21 @@ impl Observer {
     pub fn observe(
         &self,
         components: &Components,
+        configuration: &Configuration,
         renderer: &mut Renderer,
-        config: &Config,
         alpha: f32,
     ) {
         use render::*;
 
         cosmos_bounds(components, renderer);
 
-        if config.draw_quadtree {
+        if configuration.draw_quadtree {
             quadtree_nodes(components, renderer);
         }
 
-        body(components, renderer, config.draw_filled, alpha);
+        body(components, renderer, configuration.draw_filled, alpha);
 
-        if config.draw_hitbox {
+        if configuration.draw_hitbox {
             hitbox(components, renderer, alpha);
         }
     }

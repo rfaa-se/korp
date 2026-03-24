@@ -3,7 +3,7 @@ use korp_math::{Flint, Vec2};
 
 use crate::ecs::{entities::Entity, sparse_set::SparseSet};
 
-pub mod impls;
+pub mod collision_filter;
 pub mod traits;
 
 pub struct Logic {
@@ -17,8 +17,8 @@ pub struct Logic {
 pub struct Render {
     pub bodies: SparseSet<Morph<Body<f32>>>,
     pub hitboxes: SparseSet<Morph<EngineRectangle<f32>>>,
-    pub cosmos: EngineRectangle<f32>,
-    pub quadtree: Vec<EngineRectangle<f32>>,
+    pub cosmos_bounds: EngineRectangle<f32>,
+    pub quadtree_nodes: Vec<EngineRectangle<f32>>,
 }
 
 pub struct Components {
@@ -27,7 +27,7 @@ pub struct Components {
 }
 
 impl Components {
-    pub fn new(bounds: EngineRectangle<Flint>) -> Self {
+    pub fn new(cosmos_bounds: EngineRectangle<Flint>) -> Self {
         Self {
             logic: Logic {
                 bodies: SparseSet::new(u16::MAX as usize),
@@ -39,8 +39,8 @@ impl Components {
             render: Render {
                 bodies: SparseSet::new(u16::MAX as usize),
                 hitboxes: SparseSet::new(u16::MAX as usize),
-                cosmos: bounds.into(),
-                quadtree: Vec::new(),
+                cosmos_bounds: cosmos_bounds.into(),
+                quadtree_nodes: Vec::new(),
             },
         }
     }
