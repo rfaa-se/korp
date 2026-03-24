@@ -1,12 +1,11 @@
 use korp_math::{Flint, Vec2};
 
 use crate::{
-    bus::{Bus, events::CosmosEvent},
+    bus::events::CosmosEvent,
     ecs::{
         components::{Components, Shape},
         entities::Entity,
         forge::Forge,
-        tracker::Tracker,
     },
 };
 
@@ -36,18 +35,17 @@ impl Command {
         &self,
         components: &mut Components,
         forge: &mut Forge,
-        tracker: &mut Tracker,
-        bus: &mut Bus,
+        events: &mut Vec<CosmosEvent>,
     ) {
         match self {
             Command::Accelerate(entity) => accelerate(entity, components),
             Command::Decelerate(entity) => decelerate(entity, components),
             Command::TurnLeft(entity) => turn_left(entity, components),
             Command::TurnRight(entity) => turn_right(entity, components),
-            Command::Shoot(entity) => shoot(entity, components, forge, bus),
-            Command::Kill(entity) => kill(entity, components, forge, bus, tracker),
+            Command::Shoot(entity) => shoot(entity, components, forge, events),
+            Command::Kill(entity) => kill(entity, components, forge, events),
             Command::Spawn { id, kind, centroid } => {
-                spawn(id, kind, centroid, components, forge, bus)
+                spawn(id, kind, centroid, components, forge, events)
             }
         }
     }
@@ -57,12 +55,10 @@ fn kill(
     entity: &Entity,
     components: &mut Components,
     forge: &mut Forge,
-    bus: &mut Bus,
-    tracker: &mut Tracker,
+    events: &mut Vec<CosmosEvent>,
 ) {
     forge.destroy(*entity, components);
-    bus.send(CosmosEvent::Died(*entity));
-    tracker.death(entity, bus);
+    events.push(CosmosEvent::Died(*entity));
 }
 
 fn accelerate(entity: &Entity, components: &mut Components) {
@@ -103,7 +99,12 @@ fn turn_right(entity: &Entity, components: &mut Components) {
     motion.rotation_speed += motion.rotation_acceleration;
 }
 
-fn shoot(entity: &Entity, components: &mut Components, forge: &mut Forge, bus: &mut Bus) {
+fn shoot(
+    entity: &Entity,
+    components: &mut Components,
+    forge: &mut Forge,
+    events: &mut Vec<CosmosEvent>,
+) {
     let Some(body) = components.logic.bodies.get(entity) else {
         return;
     };
@@ -121,7 +122,7 @@ fn shoot(entity: &Entity, components: &mut Components, forge: &mut Forge, bus: &
 
     let entity = forge.projectile(point, rotation, components);
 
-    bus.send(CosmosEvent::Spawned { id: None, entity });
+    events.push(CosmosEvent::Spawned { id: None, entity });
 }
 
 fn spawn(
@@ -130,12 +131,12 @@ fn spawn(
     centroid: &Vec2<Flint>,
     components: &mut Components,
     forge: &mut Forge,
-    bus: &mut Bus,
+    events: &mut Vec<CosmosEvent>,
 ) {
     let entity = match kind {
         SpawnKind::Triangle => forge.triangle(*centroid, components),
         SpawnKind::Rectangle => forge.rectangle(*centroid, components),
     };
 
-    bus.send(CosmosEvent::Spawned { id: *id, entity });
+    events.push(CosmosEvent::Spawned { id: *id, entity });
 }

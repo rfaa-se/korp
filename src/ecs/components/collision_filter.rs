@@ -5,7 +5,7 @@ impl CollisionFilter {
     pub const RECTANGLE: u32 = 1 << 1;
     pub const PROJECTILE: u32 = 1 << 2;
 
-    pub fn should_collide(&self, other: &CollisionFilter) -> bool {
+    pub fn is_collidable(&self, other: &CollisionFilter) -> bool {
         (self.mask & other.category) != 0 && (other.mask & self.category) != 0
     }
 }

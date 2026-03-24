@@ -2,6 +2,7 @@ use korp_engine::{misc::Morph, shapes::Rectangle as EngineRectangle};
 use korp_math::{Flint, Vec2};
 
 use crate::{
+    bus::events::CosmosEvent,
     ecs::{
         commands::Command,
         components::{Body, Components, Rectangle, Shape, Triangle, traits::Hitboxable},
@@ -23,9 +24,9 @@ pub fn hitbox(components: &mut Components) {
     }
 }
 
-pub fn collision(components: &mut Components, quadtree: &Quadtree) {
+pub fn collision(components: &mut Components, quadtree: &Quadtree, events: &mut Vec<CosmosEvent>) {
     for node in quadtree.nodes() {
-        let grouping = node
+        let mut group = node
             .content()
             .iter()
             .filter_map(|(entity, hitbox)| {
@@ -35,22 +36,24 @@ pub fn collision(components: &mut Components, quadtree: &Quadtree) {
 
                 None
             })
-            .collect::<Vec<_>>();
+            .peekable();
 
-        for (i, (_entity1, hitbox1, filter1)) in grouping.iter().enumerate() {
-            if i == grouping.len() - 1 {
+        while let Some((entity1, hitbox1, filter1)) = group.next() {
+            let Some((entity2, hitbox2, filter2)) = group.peek() else {
                 break;
-            }
+            };
 
-            let (_entity2, hitbox2, filter2) = grouping[i + 1];
-
-            if !filter1.should_collide(filter2) {
+            if !filter1.is_collidable(filter2) {
                 continue;
             }
 
             if hitbox1.overlaps(hitbox2) {
-                // println!("COLLIDING {:?} {:?}", entity1, entity2);
                 // TODO: use SAT
+                events.push(CosmosEvent::Collided {
+                    alpha: *entity1,
+                    beta: **entity2,
+                    mtv: Flint::ZERO,
+                });
             }
         }
     }

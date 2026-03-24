@@ -47,6 +47,11 @@ pub enum CosmosEvent {
         entity: Entity,
         centroid: Vec2<Flint>,
     },
+    Collided {
+        alpha: Entity,
+        beta: Entity,
+        mtv: Flint,
+    },
 }
 
 #[derive(Debug)]

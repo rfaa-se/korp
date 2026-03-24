@@ -1,5 +1,6 @@
 use crate::{
-    ecs::{commands::Command, components::Components, cosmos::Configuration},
+    bus::{Bus, events::CosmosEvent},
+    ecs::{commands::Command, components::Components, cosmos::Configuration, tracker::Tracker},
     quadtree::Quadtree,
 };
 use korp_engine::{renderer::Renderer, shapes::Rectangle};
@@ -12,6 +13,7 @@ pub use physics::COSMIC_DRAG;
 
 pub struct Executor {}
 pub struct Observer {}
+pub struct Processor {}
 
 impl Executor {
     pub fn new() -> Self {
@@ -24,6 +26,7 @@ impl Executor {
         components: &mut Components,
         commands: &mut Vec<Command>,
         quadtree: &mut Quadtree,
+        events: &mut Vec<CosmosEvent>,
     ) {
         use physics::*;
 
@@ -31,7 +34,7 @@ impl Executor {
         motion(components);
         hitbox(components);
         rebuild_quadtree(components, quadtree);
-        collision(components, quadtree);
+        collision(components, quadtree, events);
         out_of_cosmos_bounds(cosmos_bounds, components, commands);
         constant_accelerate(components, commands);
 
@@ -68,6 +71,38 @@ impl Observer {
 
         if configuration.draw_hitbox {
             hitbox(components, renderer, alpha);
+        }
+    }
+}
+
+impl Processor {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub fn process(
+        &self,
+        _components: &mut Components,
+        tracker: &mut Tracker,
+        events: &mut Vec<CosmosEvent>,
+        bus: &mut Bus,
+    ) {
+        for event in events.drain(..) {
+            match event {
+                CosmosEvent::Died(entity) => {
+                    tracker.death(&entity, bus);
+                }
+                CosmosEvent::Collided {
+                    alpha: _,
+                    beta: _,
+                    mtv: _,
+                } => {
+                    // TODO: use the minimum translation vector to push entities apart?
+                }
+                _ => (),
+            }
+
+            bus.send(event);
         }
     }
 }

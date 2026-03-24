@@ -4,13 +4,13 @@ use korp_math::Flint;
 use crate::{
     bus::{
         Bus,
-        events::{CosmosIntent, Event, IntentEvent},
+        events::{CosmosEvent, CosmosIntent, Event, IntentEvent},
     },
     ecs::{
         commands::Command,
         components::Components,
         forge::Forge,
-        systems::{Executor, Observer},
+        systems::{Executor, Observer, Processor},
         tracker::Tracker,
     },
     quadtree::Quadtree,
@@ -34,7 +34,9 @@ pub struct Cosmos {
     forge: Forge,
     executor: Executor,
     observer: Observer,
+    processor: Processor,
     commands: Vec<Command>,
+    events: Vec<CosmosEvent>,
     tracker: Tracker,
     quadtree: Quadtree,
     configuration: Configuration,
@@ -54,7 +56,9 @@ impl Cosmos {
             forge: Forge::new(),
             executor: Executor::new(),
             observer: Observer::new(),
+            processor: Processor::new(),
             commands: Vec::new(),
+            events: Vec::new(),
             tracker: Tracker::new(),
             quadtree: Quadtree::new(bounds, 12, 8),
             configuration: Configuration {
@@ -66,13 +70,21 @@ impl Cosmos {
     }
 
     pub fn update(&mut self, bus: &mut Bus, commands: &[Vec<Command>]) {
-        self.execute_commands(bus, commands);
+        self.execute_commands(commands);
 
         self.executor.execute(
             self.bounds,
             &mut self.components,
             &mut self.commands,
             &mut self.quadtree,
+            &mut self.events,
+        );
+
+        self.processor.process(
+            &mut self.components,
+            &mut self.tracker,
+            &mut self.events,
+            bus,
         );
 
         self.tracker.update(&self.components, bus);
@@ -105,23 +117,13 @@ impl Cosmos {
         &self.components
     }
 
-    fn execute_commands(&mut self, bus: &mut Bus, commands: &[Vec<Command>]) {
+    fn execute_commands(&mut self, commands: &[Vec<Command>]) {
         for command in self.commands.drain(..) {
-            command.execute(
-                &mut self.components,
-                &mut self.forge,
-                &mut self.tracker,
-                bus,
-            );
+            command.execute(&mut self.components, &mut self.forge, &mut self.events);
         }
 
         for command in commands.iter().flatten() {
-            command.execute(
-                &mut self.components,
-                &mut self.forge,
-                &mut self.tracker,
-                bus,
-            );
+            command.execute(&mut self.components, &mut self.forge, &mut self.events);
         }
     }
 }

@@ -1,7 +1,7 @@
 use korp_engine::{misc::Morph, shapes::Rectangle};
-use korp_math::{Flint, Vec2};
+use korp_math::Flint;
 
-use crate::ecs::components::{Body, Shape};
+use crate::ecs::components::{Body, Shape, traits::Vertexable};
 
 pub trait Hitboxable {
     fn hitbox(&self) -> Rectangle<Flint>;
@@ -9,11 +9,13 @@ pub trait Hitboxable {
 
 impl Hitboxable for Body<Flint> {
     fn hitbox(&self) -> Rectangle<Flint> {
+        let vertices = self.vertices();
+
         match self.shape {
-            Shape::Triangle(triangle) => {
-                let t = self.centroid + triangle.top.rotated_v(self.rotation);
-                let l = self.centroid + triangle.left.rotated_v(self.rotation);
-                let r = self.centroid + triangle.right.rotated_v(self.rotation);
+            Shape::Triangle(_) => {
+                let t = vertices[0];
+                let l = vertices[1];
+                let r = vertices[2];
 
                 let xmin = t.x.min(l.x.min(r.x));
                 let xmax = t.x.max(l.x.max(r.x));
@@ -27,14 +29,11 @@ impl Hitboxable for Body<Flint> {
                     height: ymax - ymin,
                 }
             }
-            Shape::Rectangle(rectangle) => {
-                let w = rectangle.width * Flint::ZERO_FIVE;
-                let h = rectangle.height * Flint::ZERO_FIVE;
-
-                let tl = self.centroid + Vec2::new(-w, -h).rotated_v(self.rotation);
-                let tr = self.centroid + Vec2::new(w, -h).rotated_v(self.rotation);
-                let bl = self.centroid + Vec2::new(-w, h).rotated_v(self.rotation);
-                let br = self.centroid + Vec2::new(w, h).rotated_v(self.rotation);
+            Shape::Rectangle(_) => {
+                let tl = vertices[0];
+                let tr = vertices[1];
+                let bl = vertices[2];
+                let br = vertices[3];
 
                 let xmin = tl.x.min(tr.x.min(bl.x.min(br.x)));
                 let xmax = tl.x.max(tr.x.max(bl.x.max(br.x)));
