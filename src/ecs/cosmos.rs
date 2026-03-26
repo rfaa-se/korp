@@ -84,6 +84,7 @@ impl Cosmos {
             &mut self.components,
             &mut self.tracker,
             &mut self.events,
+            &mut self.commands,
             bus,
         );
 

@@ -3,7 +3,8 @@ use korp_math::{Flint, Vec2};
 
 use crate::ecs::{
     components::{
-        Body, CollisionFilter, Components, ConstantAccelerator, Motion, Rectangle, Shape, Triangle,
+        Body, CollisionFilter, Components, ConstantAccelerator, Motion, Owner, Rectangle, Shape,
+        SpawnProtection, Triangle,
     },
     entities::{Entity, EntityFactory},
     systems::COSMIC_DRAG,
@@ -112,6 +113,8 @@ impl Forge {
 
     pub fn projectile(
         &mut self,
+        owner: Entity,
+        base_speed: Flint,
         centroid: Vec2<Flint>,
         rotation: Vec2<Flint>,
         components: &mut Components,
@@ -130,11 +133,13 @@ impl Forge {
 
         components.logic.bodies.insert(entity, Morph::one(body));
 
+        let velocity = rotation * Flint::new(10, 0) + rotation * base_speed;
+
         components.logic.motions.insert(
             entity,
             Motion {
-                velocity: rotation + rotation * Flint::new(10, 0),
-                speed_maximum: Flint::new(15, 0),
+                velocity,
+                speed_maximum: Flint::new(100, 0),
                 speed_minimum: Flint::ZERO,
                 acceleration: COSMIC_DRAG,
                 rotation_speed: Flint::ZERO,
@@ -156,6 +161,16 @@ impl Forge {
                 mask: CollisionFilter::TRIANGLE | CollisionFilter::RECTANGLE,
             },
         );
+
+        components
+            .logic
+            .owners
+            .insert(entity, Owner { entity: owner });
+
+        components
+            .logic
+            .spawn_protections
+            .insert(entity, SpawnProtection);
 
         entity
     }

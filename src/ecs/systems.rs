@@ -31,9 +31,12 @@ impl Executor {
         use physics::*;
 
         morph_body(components);
+        morph_vertices(components);
         motion(components);
+        vertices(components);
         hitbox(components);
         rebuild_quadtree(components, quadtree);
+        spawn_protection(components);
         collision(components, quadtree, events);
         out_of_cosmos_bounds(cosmos_bounds, components, commands);
         constant_accelerate(components, commands);
@@ -82,22 +85,61 @@ impl Processor {
 
     pub fn process(
         &self,
-        _components: &mut Components,
+        components: &mut Components,
         tracker: &mut Tracker,
         events: &mut Vec<CosmosEvent>,
+        commands: &mut Vec<Command>,
         bus: &mut Bus,
     ) {
+        let kill = |a, b| {
+            let Some(owner) = components.logic.owners.get(&a) else {
+                return true;
+            };
+
+            if owner.entity != b {
+                return true;
+            }
+
+            let None = components.logic.spawn_protections.get(&a) else {
+                return true;
+            };
+
+            false
+        };
+
+        let spawn_protected = |a, b| {
+            let Some(owner) = components.logic.owners.get(&a) else {
+                return false;
+            };
+
+            if owner.entity != b {
+                return false;
+            }
+
+            let None = components.logic.spawn_protections.get(&a) else {
+                return false;
+            };
+
+            true
+        };
+
         for event in events.drain(..) {
             match event {
                 CosmosEvent::Died(entity) => {
                     tracker.death(&entity, bus);
                 }
                 CosmosEvent::Collided {
-                    alpha: _,
-                    beta: _,
+                    alpha,
+                    beta,
                     mtv: _,
                 } => {
                     // TODO: use the minimum translation vector to push entities apart?
+                    if spawn_protected(alpha, beta) || spawn_protected(beta, alpha) {
+                        continue;
+                    }
+
+                    commands.push(Command::Kill(alpha));
+                    commands.push(Command::Kill(beta));
                 }
                 _ => (),
             }

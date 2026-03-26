@@ -12,6 +12,9 @@ pub struct Logic {
     pub motions: SparseSet<Motion>,
     pub constant_accelerators: SparseSet<ConstantAccelerator>,
     pub collision_filters: SparseSet<CollisionFilter>,
+    pub vertices: SparseSet<Morph<Vec<Vec2<Flint>>>>,
+    pub owners: SparseSet<Owner>,
+    pub spawn_protections: SparseSet<SpawnProtection>,
 }
 
 pub struct Render {
@@ -35,6 +38,9 @@ impl Components {
                 motions: SparseSet::new(u16::MAX as usize),
                 constant_accelerators: SparseSet::new(u16::MAX as usize),
                 collision_filters: SparseSet::new(u16::MAX as usize),
+                vertices: SparseSet::new(u16::MAX as usize),
+                owners: SparseSet::new(u16::MAX as usize),
+                spawn_protections: SparseSet::new(u16::MAX as usize),
             },
             render: Render {
                 bodies: SparseSet::new(u16::MAX as usize),
@@ -51,6 +57,9 @@ impl Components {
         self.logic.motions.remove(entity);
         self.logic.constant_accelerators.remove(entity);
         self.logic.collision_filters.remove(entity);
+        self.logic.vertices.remove(entity);
+        self.logic.owners.remove(entity);
+        self.logic.spawn_protections.remove(entity);
 
         self.render.bodies.remove(entity);
         self.render.hitboxes.remove(entity);
@@ -101,3 +110,9 @@ pub struct CollisionFilter {
     pub category: u32,
     pub mask: u32,
 }
+
+pub struct Owner {
+    pub entity: Entity,
+}
+
+pub struct SpawnProtection;
