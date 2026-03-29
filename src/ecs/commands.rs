@@ -120,12 +120,12 @@ fn shoot(
         }
         .rotated_v(rotation);
 
-    let base_speed = match components.logic.motions.get(entity) {
+    let relative_speed = match components.logic.motions.get(entity) {
         Some(motion) => motion.velocity.len(),
         None => Flint::ZERO,
     };
 
-    let entity = forge.projectile(*entity, base_speed, point, rotation, components);
+    let entity = forge.projectile(*entity, relative_speed, point, rotation, components);
 
     events.push(CosmosEvent::Spawned { id: None, entity });
 }

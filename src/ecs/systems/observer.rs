@@ -1,15 +1,46 @@
 use korp_engine::{color::Color, renderer::Renderer, shapes::Rectangle};
 use korp_math::{Vec2, lerp};
 
-use crate::ecs::components::{Components, traits::Renderable};
+use crate::ecs::{
+    components::{Components, traits::Renderable},
+    cosmos::Configuration,
+};
 
-pub fn body(components: &Components, renderer: &mut Renderer, draw_filled: bool, alpha: f32) {
+pub struct Observer {}
+
+impl Observer {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub fn observe(
+        &self,
+        components: &Components,
+        configuration: &Configuration,
+        renderer: &mut Renderer,
+        alpha: f32,
+    ) {
+        cosmos_bounds(components, renderer);
+
+        if configuration.draw_quadtree {
+            quadtree_nodes(components, renderer);
+        }
+
+        body(components, renderer, configuration.draw_filled, alpha);
+
+        if configuration.draw_hitbox {
+            hitbox(components, renderer, alpha);
+        }
+    }
+}
+
+fn body(components: &Components, renderer: &mut Renderer, draw_filled: bool, alpha: f32) {
     for (_, body) in components.render.bodies.iter() {
         body.render(renderer, draw_filled, alpha);
     }
 }
 
-pub fn hitbox(components: &Components, renderer: &mut Renderer, alpha: f32) {
+fn hitbox(components: &Components, renderer: &mut Renderer, alpha: f32) {
     for (_, hitbox) in components.render.hitboxes.iter() {
         let width = lerp(hitbox.old.width, hitbox.new.width, alpha);
         let height = lerp(hitbox.old.height, hitbox.new.height, alpha);
@@ -24,7 +55,7 @@ pub fn hitbox(components: &Components, renderer: &mut Renderer, alpha: f32) {
     }
 }
 
-pub fn cosmos_bounds(components: &Components, renderer: &mut Renderer) {
+fn cosmos_bounds(components: &Components, renderer: &mut Renderer) {
     let bounds = components.render.cosmos_bounds;
     let rotation = Vec2::new(1.0, 0.0);
     let color = Color::RED;
@@ -36,7 +67,7 @@ pub fn cosmos_bounds(components: &Components, renderer: &mut Renderer) {
     renderer.draw_rectangle_lines(bounds, rotation, origin, color);
 }
 
-pub fn quadtree_nodes(components: &Components, renderer: &mut Renderer) {
+fn quadtree_nodes(components: &Components, renderer: &mut Renderer) {
     for node in components.render.quadtree_nodes.iter() {
         let rotation = Vec2::new(1.0, 0.0);
         let color = Color::RED;

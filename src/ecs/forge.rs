@@ -114,7 +114,7 @@ impl Forge {
     pub fn projectile(
         &mut self,
         owner: Entity,
-        base_speed: Flint,
+        relative_speed: Flint,
         centroid: Vec2<Flint>,
         rotation: Vec2<Flint>,
         components: &mut Components,
@@ -125,15 +125,15 @@ impl Forge {
             centroid,
             rotation,
             shape: Shape::Rectangle(Rectangle {
-                width: Flint::new(16, 0),
-                height: Flint::new(10, 0),
+                width: Flint::new(6, 0),
+                height: Flint::new(3, 0),
             }),
             color: Color::GREEN,
         };
 
         components.logic.bodies.insert(entity, Morph::one(body));
 
-        let velocity = rotation * Flint::new(10, 0) + rotation * base_speed;
+        let velocity = rotation * Flint::new(16, 0) + rotation * relative_speed;
 
         components.logic.motions.insert(
             entity,

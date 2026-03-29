@@ -12,19 +12,54 @@ use crate::{
 
 pub const COSMIC_DRAG: Flint = Flint::new(0, Flint::POINT_ONE * 2);
 
-pub fn morph_body(components: &mut Components) {
+pub struct Executor {}
+
+impl Executor {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub fn execute(
+        &mut self,
+        cosmos_bounds: EngineRectangle<Flint>,
+        components: &mut Components,
+        commands: &mut Vec<Command>,
+        quadtree: &mut Quadtree,
+        events: &mut Vec<CosmosEvent>,
+    ) {
+        morph_body(components);
+        morph_vertices(components);
+        motion(components);
+        vertices(components);
+        hitbox(components);
+        rebuild_quadtree(components, quadtree);
+        spawn_protection(components);
+        collision(components, quadtree, events);
+        out_of_cosmos_bounds(cosmos_bounds, components, commands);
+        constant_accelerate(components, commands);
+
+        morph_body_render(components);
+        morph_hitbox_render(components);
+        body_render(components);
+        hitbox_render(components);
+        quadtree_nodes_render(components, quadtree);
+        cosmos_bounds_render(components, cosmos_bounds);
+    }
+}
+
+fn morph_body(components: &mut Components) {
     for (_, body) in components.logic.bodies.iter_mut() {
         body.old = body.new;
     }
 }
 
-pub fn morph_vertices(components: &mut Components) {
+fn morph_vertices(components: &mut Components) {
     for (_, vertices) in components.logic.vertices.iter_mut() {
         std::mem::swap(&mut vertices.old, &mut vertices.new);
     }
 }
 
-pub fn vertices(components: &mut Components) {
+fn vertices(components: &mut Components) {
     for (entity, body) in components.logic.bodies.iter() {
         if let Some(vertices) = components.logic.vertices.get_mut(entity) {
             vertices.new = body.new.vertices();
@@ -40,7 +75,7 @@ pub fn vertices(components: &mut Components) {
     }
 }
 
-pub fn hitbox(components: &mut Components) {
+fn hitbox(components: &mut Components) {
     for (&entity, vertices) in components.logic.vertices.iter() {
         let Some((xmin, xmax, ymin, ymax)) = vertices
             .old
@@ -73,7 +108,7 @@ pub fn hitbox(components: &mut Components) {
     }
 }
 
-pub fn spawn_protection(components: &mut Components) {
+fn spawn_protection(components: &mut Components) {
     let mut removed = Vec::new();
 
     for (entity, _) in components.logic.spawn_protections.iter() {
@@ -99,7 +134,7 @@ pub fn spawn_protection(components: &mut Components) {
     }
 }
 
-pub fn collision(components: &mut Components, quadtree: &Quadtree, events: &mut Vec<CosmosEvent>) {
+fn collision(components: &mut Components, quadtree: &Quadtree, events: &mut Vec<CosmosEvent>) {
     let project = |vertices: &[Vec2<Flint>], axis: Vec2<Flint>| {
         let mut min = axis.dot(&vertices[0]);
         let mut max = min;
@@ -188,19 +223,19 @@ pub fn collision(components: &mut Components, quadtree: &Quadtree, events: &mut 
     }
 }
 
-pub fn morph_body_render(components: &mut Components) {
+fn morph_body_render(components: &mut Components) {
     for (_, body) in components.render.bodies.iter_mut() {
         body.old = body.new;
     }
 }
 
-pub fn morph_hitbox_render(components: &mut Components) {
+fn morph_hitbox_render(components: &mut Components) {
     for (_, hitbox) in components.render.hitboxes.iter_mut() {
         hitbox.old = hitbox.new;
     }
 }
 
-pub fn body_render(components: &mut Components) {
+fn body_render(components: &mut Components) {
     for (&entity, lb) in components.logic.bodies.iter() {
         let body = Body {
             centroid: lb.new.centroid.into(),
@@ -222,12 +257,33 @@ pub fn body_render(components: &mut Components) {
         if let Some(rb) = components.render.bodies.get_mut(&entity) {
             rb.new = body;
         } else {
-            components.render.bodies.insert(entity, Morph::one(body));
+            components.render.bodies.insert(
+                entity,
+                Morph::new(
+                    Body {
+                        centroid: lb.old.centroid.into(),
+                        rotation: lb.old.rotation.into(),
+                        shape: match lb.old.shape {
+                            Shape::Triangle(triangle) => Shape::Triangle(Triangle {
+                                top: triangle.top.into(),
+                                left: triangle.left.into(),
+                                right: triangle.right.into(),
+                            }),
+                            Shape::Rectangle(rectangle) => Shape::Rectangle(Rectangle {
+                                width: rectangle.width.into(),
+                                height: rectangle.height.into(),
+                            }),
+                        },
+                        color: lb.old.color,
+                    },
+                    body,
+                ),
+            );
         }
     }
 }
 
-pub fn hitbox_render(components: &mut Components) {
+fn hitbox_render(components: &mut Components) {
     for (&entity, lhb) in components.logic.hitboxes.iter() {
         let rectangle = EngineRectangle {
             x: lhb.x.into(),
@@ -247,7 +303,7 @@ pub fn hitbox_render(components: &mut Components) {
     }
 }
 
-pub fn quadtree_nodes_render(components: &mut Components, quadtree: &Quadtree) {
+fn quadtree_nodes_render(components: &mut Components, quadtree: &Quadtree) {
     components.render.quadtree_nodes.clear();
 
     for node in quadtree.nodes() {
@@ -255,11 +311,11 @@ pub fn quadtree_nodes_render(components: &mut Components, quadtree: &Quadtree) {
     }
 }
 
-pub fn cosmos_bounds_render(components: &mut Components, cosmos_bounds: EngineRectangle<Flint>) {
+fn cosmos_bounds_render(components: &mut Components, cosmos_bounds: EngineRectangle<Flint>) {
     components.render.cosmos_bounds = cosmos_bounds.into();
 }
 
-pub fn motion(components: &mut Components) {
+fn motion(components: &mut Components) {
     for (entity, motion) in components.logic.motions.iter_mut() {
         let Some(body) = components.logic.bodies.get_mut(entity) else {
             continue;
@@ -317,7 +373,7 @@ pub fn motion(components: &mut Components) {
     }
 }
 
-pub fn out_of_cosmos_bounds(
+fn out_of_cosmos_bounds(
     bounds: EngineRectangle<Flint>,
     components: &mut Components,
     commands: &mut Vec<Command>,
@@ -329,13 +385,13 @@ pub fn out_of_cosmos_bounds(
     }
 }
 
-pub fn constant_accelerate(components: &mut Components, commands: &mut Vec<Command>) {
+fn constant_accelerate(components: &mut Components, commands: &mut Vec<Command>) {
     for (&entity, _) in components.logic.constant_accelerators.iter() {
         commands.push(Command::Accelerate(entity));
     }
 }
 
-pub fn rebuild_quadtree(components: &Components, quadtree: &mut Quadtree) {
+fn rebuild_quadtree(components: &Components, quadtree: &mut Quadtree) {
     quadtree.clear();
 
     for (entity, hitbox) in components.logic.hitboxes.iter() {
