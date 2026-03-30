@@ -1,5 +1,5 @@
 use korp_engine::{renderer::Renderer, shapes::Rectangle};
-use korp_math::Flint;
+use korp_math::{Flint, Random};
 
 use crate::{
     bus::{
@@ -69,11 +69,12 @@ impl Cosmos {
         }
     }
 
-    pub fn update(&mut self, bus: &mut Bus, commands: &[Vec<Command>]) {
+    pub fn update(&mut self, bus: &mut Bus, random: &mut Random, commands: &[Vec<Command>]) {
         self.execute_commands(commands);
 
         self.executor.execute(
             self.bounds,
+            random,
             &mut self.components,
             &mut self.commands,
             &mut self.quadtree,

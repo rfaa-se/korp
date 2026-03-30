@@ -3,8 +3,8 @@ use korp_math::{Flint, Vec2};
 
 use crate::ecs::{
     components::{
-        Body, CollisionFilter, Components, ConstantAccelerator, Motion, Owner, Rectangle, Shape,
-        SpawnProtection, Triangle,
+        Body, CollisionFilter, Components, ConstantAccelerator, ExhaustEmitter, Lifetime, Motion,
+        Owner, Rectangle, Shape, SpawnProtection, Triangle,
     },
     entities::{Entity, EntityFactory},
     systems::COSMIC_DRAG,
@@ -29,6 +29,14 @@ impl Forge {
     pub fn triangle(&mut self, centroid: Vec2<Flint>, components: &mut Components) -> Entity {
         let entity = self.factory.create();
 
+        // left
+        // |\
+        // | \
+        // |  > top
+        // | /
+        // |/
+        // right
+        //
         let body = Body {
             centroid,
             rotation: Vec2::new(Flint::ZERO, Flint::NEG_ONE),
@@ -66,12 +74,26 @@ impl Forge {
             },
         );
 
+        components.logic.exhaust_emitters.insert(
+            entity,
+            ExhaustEmitter {
+                lifetime_maximum: 3,
+                lifetime: 0,
+                size: 7,
+            },
+        );
+
         entity
     }
 
     pub fn rectangle(&mut self, centroid: Vec2<Flint>, components: &mut Components) -> Entity {
         let entity = self.factory.create();
 
+        //  height
+        // ________
+        // |       | width
+        // |_______|
+        //
         let body = Body {
             centroid,
             rotation: Vec2::new(Flint::ZERO, Flint::NEG_ONE),
@@ -171,6 +193,50 @@ impl Forge {
             .logic
             .spawn_protections
             .insert(entity, SpawnProtection);
+
+        entity
+    }
+
+    pub fn particle(
+        &mut self,
+        centroid: Vec2<Flint>,
+        direction: Vec2<Flint>,
+        speed: Flint,
+        lifetime: u32,
+        components: &mut Components,
+    ) -> Entity {
+        let entity = self.factory.create();
+
+        let body = Body {
+            centroid,
+            rotation: direction,
+            shape: Shape::Rectangle(Rectangle {
+                width: Flint::new(1, 0),
+                height: Flint::new(1, 0),
+            }),
+            color: Color::BLUE,
+        };
+
+        components.logic.bodies.insert(entity, Morph::one(body));
+
+        components.logic.motions.insert(
+            entity,
+            Motion {
+                velocity: direction * speed,
+                speed_maximum: Flint::new(100, 0),
+                speed_minimum: Flint::ZERO,
+                acceleration: Flint::ZERO,
+                rotation_speed: Flint::ZERO,
+                rotation_speed_maximum: Flint::ZERO,
+                rotation_speed_minimum: Flint::ZERO,
+                rotation_acceleration: Flint::ZERO,
+            },
+        );
+
+        components
+            .logic
+            .lifetimes
+            .insert(entity, Lifetime { value: lifetime });
 
         entity
     }

@@ -15,6 +15,8 @@ pub struct Logic {
     pub vertices: SparseSet<Morph<Vec<Vec2<Flint>>>>,
     pub owners: SparseSet<Owner>,
     pub spawn_protections: SparseSet<SpawnProtection>,
+    pub exhaust_emitters: SparseSet<ExhaustEmitter>,
+    pub lifetimes: SparseSet<Lifetime>,
 }
 
 pub struct Render {
@@ -31,20 +33,24 @@ pub struct Components {
 
 impl Components {
     pub fn new(cosmos_bounds: EngineRectangle<Flint>) -> Self {
+        let capacity = u16::MAX as usize;
+
         Self {
             logic: Logic {
-                bodies: SparseSet::new(u16::MAX as usize),
-                hitboxes: SparseSet::new(u16::MAX as usize),
-                motions: SparseSet::new(u16::MAX as usize),
-                constant_accelerators: SparseSet::new(u16::MAX as usize),
-                collision_filters: SparseSet::new(u16::MAX as usize),
-                vertices: SparseSet::new(u16::MAX as usize),
-                owners: SparseSet::new(u16::MAX as usize),
-                spawn_protections: SparseSet::new(u16::MAX as usize),
+                bodies: SparseSet::new(capacity),
+                hitboxes: SparseSet::new(capacity),
+                motions: SparseSet::new(capacity),
+                constant_accelerators: SparseSet::new(capacity),
+                collision_filters: SparseSet::new(capacity),
+                vertices: SparseSet::new(capacity),
+                owners: SparseSet::new(capacity),
+                spawn_protections: SparseSet::new(capacity),
+                exhaust_emitters: SparseSet::new(capacity),
+                lifetimes: SparseSet::new(capacity),
             },
             render: Render {
-                bodies: SparseSet::new(u16::MAX as usize),
-                hitboxes: SparseSet::new(u16::MAX as usize),
+                bodies: SparseSet::new(capacity),
+                hitboxes: SparseSet::new(capacity),
                 cosmos_bounds: cosmos_bounds.into(),
                 quadtree_nodes: Vec::new(),
             },
@@ -60,6 +66,8 @@ impl Components {
         self.logic.vertices.remove(entity);
         self.logic.owners.remove(entity);
         self.logic.spawn_protections.remove(entity);
+        self.logic.exhaust_emitters.remove(entity);
+        self.logic.lifetimes.remove(entity);
 
         self.render.bodies.remove(entity);
         self.render.hitboxes.remove(entity);
@@ -116,3 +124,13 @@ pub struct Owner {
 }
 
 pub struct SpawnProtection;
+
+pub struct ExhaustEmitter {
+    pub lifetime_maximum: u32,
+    pub lifetime: u32,
+    pub size: i16,
+}
+
+pub struct Lifetime {
+    pub value: u32,
+}

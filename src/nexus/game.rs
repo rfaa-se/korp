@@ -7,7 +7,7 @@ use korp_engine::{
     renderer::{Camera, Renderer},
     shapes::Rectangle,
 };
-use korp_math::{Flint, Vec2, lerp};
+use korp_math::{Flint, Random, Vec2, lerp};
 
 use crate::{
     bus::{
@@ -25,6 +25,7 @@ use crate::{
 };
 
 pub struct Game {
+    random: Random,
     cosmos: Cosmos,
     camera: Camera,
     camera_target: Morph<Vec2<f32>>,
@@ -56,7 +57,6 @@ struct Data {
     id: usize,
     pid: Option<Entity>,
     ids: Vec<usize>,
-    seed: u64,
     id_idx: HashMap<usize, usize>,
     tick: usize,
     commands: Vec<Command>,
@@ -97,8 +97,7 @@ fn init_cosmos(
         cosmos.event(
             &(CosmosIntent::Command(Command::Spawn {
                 id: Some(*id),
-                kind: SpawnKind::Triangle,
-                centroid: spawn,
+                kind: SpawnKind::Triangle { centroid: spawn },
             }))
             .into(),
         );
@@ -137,12 +136,12 @@ impl Game {
                 id,
                 pid: None,
                 ids,
-                seed,
                 id_idx,
                 tick: 0,
                 commands: Vec::new(),
                 commands_history,
             },
+            random: Random::new(seed),
             cosmos,
             camera: Camera::new(800.0, 600.0),
             camera_target: Morph::one(spawn.into()),
@@ -170,7 +169,8 @@ impl Game {
             self.state.handle(action, bus, &mut self.data);
         }
 
-        self.state.update(bus, &mut self.data, &mut self.cosmos);
+        self.state
+            .update(bus, &mut self.data, &mut self.cosmos, &mut self.random);
     }
 
     pub fn input(&mut self, input: &Input) {
@@ -313,22 +313,24 @@ impl Game {
         if input.is_pressed(&self.keybindings.triangle) {
             self.data.commands.push(Command::Spawn {
                 id: None,
-                kind: SpawnKind::Triangle,
-                centroid: Vec2::new(
-                    Flint::from_i16(input.mouse.x as i16),
-                    Flint::from_i16(input.mouse.y as i16),
-                ),
+                kind: SpawnKind::Triangle {
+                    centroid: Vec2::new(
+                        Flint::from_i16(input.mouse.x as i16),
+                        Flint::from_i16(input.mouse.y as i16),
+                    ),
+                },
             });
         }
 
         if input.is_pressed(&self.keybindings.rectangle) {
             self.data.commands.push(Command::Spawn {
                 id: None,
-                kind: SpawnKind::Rectangle,
-                centroid: Vec2::new(
-                    Flint::from_i16(input.mouse.x as i16),
-                    Flint::from_i16(input.mouse.y as i16),
-                ),
+                kind: SpawnKind::Rectangle {
+                    centroid: Vec2::new(
+                        Flint::from_i16(input.mouse.x as i16),
+                        Flint::from_i16(input.mouse.y as i16),
+                    ),
+                },
             });
         }
 
@@ -394,7 +396,7 @@ impl State {
         }
     }
 
-    fn update(&mut self, bus: &mut Bus, data: &mut Data, cosmos: &mut Cosmos) {
+    fn update(&mut self, bus: &mut Bus, data: &mut Data, cosmos: &mut Cosmos, random: &mut Random) {
         self.prepare(bus, data);
 
         if !matches!(self, State::Running) {
@@ -407,7 +409,7 @@ impl State {
             commands: std::mem::take(&mut data.commands),
         });
 
-        cosmos.update(bus, &data.commands_history[data.tick]);
+        cosmos.update(bus, random, &data.commands_history[data.tick]);
         data.tick += 1;
     }
 

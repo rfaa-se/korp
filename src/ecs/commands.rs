@@ -17,17 +17,29 @@ pub enum Command {
     TurnRight(Entity),
     Shoot(Entity),
     Kill(Entity),
-    Spawn {
-        id: Option<usize>,
-        kind: SpawnKind,
-        centroid: Vec2<Flint>,
-    },
+    Spawn { id: Option<usize>, kind: SpawnKind },
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum SpawnKind {
-    Triangle,
-    Rectangle,
+    Triangle {
+        centroid: Vec2<Flint>,
+    },
+    Rectangle {
+        centroid: Vec2<Flint>,
+    },
+    Projectile {
+        owner: Entity,
+        relative_speed: Flint,
+        centroid: Vec2<Flint>,
+        rotation: Vec2<Flint>,
+    },
+    Particle {
+        centroid: Vec2<Flint>,
+        direction: Vec2<Flint>,
+        speed: Flint,
+        lifetime: u32,
+    },
 }
 
 impl Command {
@@ -44,9 +56,7 @@ impl Command {
             Command::TurnRight(entity) => turn_right(entity, components),
             Command::Shoot(entity) => shoot(entity, components, forge, events),
             Command::Kill(entity) => kill(entity, components, forge, events),
-            Command::Spawn { id, kind, centroid } => {
-                spawn(id, kind, centroid, components, forge, events)
-            }
+            Command::Spawn { id, kind } => spawn(id, kind, components, forge, events),
         }
     }
 }
@@ -70,6 +80,10 @@ fn accelerate(entity: &Entity, components: &mut Components) {
     };
 
     motion.velocity += body.new.rotation * motion.acceleration;
+
+    if let Some(emitter) = components.logic.exhaust_emitters.get_mut(entity) {
+        emitter.lifetime = emitter.lifetime_maximum;
+    }
 }
 
 fn decelerate(entity: &Entity, components: &mut Components) {
@@ -111,7 +125,7 @@ fn shoot(
 
     // calculate the spawn point
     let rotation = body.new.rotation;
-    let point = body.new.centroid
+    let centroid = body.new.centroid
         + match body.new.shape {
             Shape::Triangle(triangle) => triangle.top,
             Shape::Rectangle(rectangle) => {
@@ -125,22 +139,42 @@ fn shoot(
         None => Flint::ZERO,
     };
 
-    let entity = forge.projectile(*entity, relative_speed, point, rotation, components);
-
-    events.push(CosmosEvent::Spawned { id: None, entity });
+    spawn(
+        &None,
+        &SpawnKind::Projectile {
+            owner: *entity,
+            relative_speed,
+            centroid,
+            rotation,
+        },
+        components,
+        forge,
+        events,
+    );
 }
 
 fn spawn(
     id: &Option<usize>,
     kind: &SpawnKind,
-    centroid: &Vec2<Flint>,
     components: &mut Components,
     forge: &mut Forge,
     events: &mut Vec<CosmosEvent>,
 ) {
     let entity = match kind {
-        SpawnKind::Triangle => forge.triangle(*centroid, components),
-        SpawnKind::Rectangle => forge.rectangle(*centroid, components),
+        SpawnKind::Triangle { centroid } => forge.triangle(*centroid, components),
+        SpawnKind::Rectangle { centroid } => forge.rectangle(*centroid, components),
+        SpawnKind::Projectile {
+            owner,
+            relative_speed,
+            centroid,
+            rotation,
+        } => forge.projectile(*owner, *relative_speed, *centroid, *rotation, components),
+        SpawnKind::Particle {
+            centroid,
+            direction,
+            speed,
+            lifetime,
+        } => forge.particle(*centroid, *direction, *speed, *lifetime, components),
     };
 
     events.push(CosmosEvent::Spawned { id: *id, entity });

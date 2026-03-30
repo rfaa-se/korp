@@ -1,9 +1,11 @@
 mod flint;
+mod random;
 mod vec2;
 
 use std::f32::consts::{PI, TAU};
 
 pub use flint::*;
+pub use random::*;
 pub use vec2::*;
 
 pub fn lerp_angle(a: f32, b: f32, t: f32) -> f32 {

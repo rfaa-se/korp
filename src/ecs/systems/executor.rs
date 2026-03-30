@@ -1,10 +1,10 @@
 use korp_engine::{misc::Morph, shapes::Rectangle as EngineRectangle};
-use korp_math::{Flint, Vec2};
+use korp_math::{Flint, Random, Vec2};
 
 use crate::{
     bus::events::CosmosEvent,
     ecs::{
-        commands::Command,
+        commands::{Command, SpawnKind},
         components::{Body, Components, Rectangle, Shape, Triangle, traits::Vertexable},
     },
     quadtree::Quadtree,
@@ -22,6 +22,7 @@ impl Executor {
     pub fn execute(
         &mut self,
         cosmos_bounds: EngineRectangle<Flint>,
+        random: &mut Random,
         components: &mut Components,
         commands: &mut Vec<Command>,
         quadtree: &mut Quadtree,
@@ -37,6 +38,8 @@ impl Executor {
         collision(components, quadtree, events);
         out_of_cosmos_bounds(cosmos_bounds, components, commands);
         constant_accelerate(components, commands);
+        exhaust_emitter(components, random, commands);
+        lifetime(components, commands);
 
         morph_body_render(components);
         morph_hitbox_render(components);
@@ -211,6 +214,7 @@ fn collision(components: &mut Components, quadtree: &Quadtree, events: &mut Vec<
                     continue;
                 }
 
+                // TODO: need to check values between old and new + rotation
                 if intersecting(&vertices1.new, &vertices2.new) {
                     events.push(CosmosEvent::Collided {
                         alpha: **entity1,
@@ -396,5 +400,54 @@ fn rebuild_quadtree(components: &Components, quadtree: &mut Quadtree) {
 
     for (entity, hitbox) in components.logic.hitboxes.iter() {
         quadtree.insert(*entity, *hitbox);
+    }
+}
+
+fn exhaust_emitter(components: &mut Components, random: &mut Random, commands: &mut Vec<Command>) {
+    for (entity, emitter) in components.logic.exhaust_emitters.iter_mut() {
+        if emitter.lifetime == 0 {
+            continue;
+        }
+
+        emitter.lifetime -= 1;
+
+        if let Some(body) = components.logic.bodies.get(entity) {
+            let direction = body.new.rotation * -1;
+
+            let half = emitter.size / 2;
+            for i in 0..emitter.size {
+                let centroid = body.new.centroid
+                    + match body.new.shape {
+                        Shape::Triangle(triangle) => {
+                            let middle = (triangle.left + triangle.right) * Flint::ZERO_FIVE;
+                            Vec2::new(middle.x, middle.y + Flint::new(i - half, 0))
+                        }
+                        Shape::Rectangle(rectangle) => {
+                            Vec2::new(rectangle.width * Flint::ZERO_FIVE, rectangle.height)
+                        }
+                    }
+                    .rotated_v(body.new.rotation);
+
+                commands.push(Command::Spawn {
+                    id: None,
+                    kind: SpawnKind::Particle {
+                        centroid,
+                        direction,
+                        speed: Flint::new(random.range(0, 4) as i16, random.range(0, 256) as u16),
+                        lifetime: random.range(4, 20) as u32,
+                    },
+                });
+            }
+        }
+    }
+}
+
+fn lifetime(components: &mut Components, commands: &mut Vec<Command>) {
+    for (entity, lifetime) in components.logic.lifetimes.iter_mut() {
+        if lifetime.value > 0 {
+            lifetime.value -= 1;
+        } else {
+            commands.push(Command::Kill(*entity));
+        }
     }
 }
