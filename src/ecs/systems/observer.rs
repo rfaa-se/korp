@@ -26,21 +26,28 @@ impl Observer {
             quadtree_nodes(components, renderer);
         }
 
-        body(components, renderer, configuration.draw_filled, alpha);
+        bodies(components, renderer, configuration.draw_filled, alpha);
+        particles(components, renderer, alpha);
 
         if configuration.draw_hitbox {
-            hitbox(components, renderer, alpha);
+            hitboxes(components, renderer, alpha);
         }
     }
 }
 
-fn body(components: &Components, renderer: &mut Renderer, draw_filled: bool, alpha: f32) {
+fn bodies(components: &Components, renderer: &mut Renderer, draw_filled: bool, alpha: f32) {
     for (_, body) in components.render.bodies.iter() {
         body.render(renderer, draw_filled, alpha);
     }
 }
 
-fn hitbox(components: &Components, renderer: &mut Renderer, alpha: f32) {
+fn particles(components: &Components, renderer: &mut Renderer, alpha: f32) {
+    for particle in components.render.particles.iter() {
+        particle.render(renderer, true, alpha);
+    }
+}
+
+fn hitboxes(components: &Components, renderer: &mut Renderer, alpha: f32) {
     for (_, hitbox) in components.render.hitboxes.iter() {
         let width = lerp(hitbox.old.width, hitbox.new.width, alpha);
         let height = lerp(hitbox.old.height, hitbox.new.height, alpha);

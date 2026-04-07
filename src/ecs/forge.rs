@@ -3,8 +3,8 @@ use korp_math::{Flint, Vec2};
 
 use crate::ecs::{
     components::{
-        Body, CollisionFilter, Components, ConstantAccelerator, ExhaustEmitter, Lifetime, Motion,
-        Owner, Rectangle, Shape, SpawnProtection, Triangle,
+        Body, CollisionFilter, Components, ConstantAccelerator, ExhaustEmitter, Motion, Owner,
+        Particle, Rectangle, Shape, SpawnProtection, Triangle,
     },
     entities::{Entity, EntityFactory},
     systems::COSMIC_DRAG,
@@ -37,14 +37,13 @@ impl Forge {
         // |/
         // right
         //
+        let top = Vec2::new(Flint::new(50, 0), Flint::new(0, 0));
+        let left = Vec2::new(Flint::new(-25, 0), Flint::new(-30, 0));
+        let right = Vec2::new(Flint::new(-25, 0), Flint::new(30, 0));
         let body = Body {
             centroid,
             rotation: Vec2::new(Flint::ZERO, Flint::NEG_ONE),
-            shape: Shape::Triangle(Triangle {
-                top: Vec2::new(Flint::new(50, 0), Flint::new(0, 0)),
-                left: Vec2::new(Flint::new(-25, 0), Flint::new(-30, 0)),
-                right: Vec2::new(Flint::new(-25, 0), Flint::new(30, 0)),
-            }),
+            shape: Shape::Triangle(Triangle { top, left, right }),
             color: Color::GREEN,
         };
 
@@ -77,9 +76,14 @@ impl Forge {
         components.logic.exhaust_emitters.insert(
             entity,
             ExhaustEmitter {
-                lifetime_maximum: 3,
+                lifetime_maximum: 5,
                 lifetime: 0,
-                size: 7,
+                width: 7,
+                relative_position: Vec2::new(
+                    (left.x + right.x) * Flint::ZERO_FIVE,
+                    (left.y + right.y) * Flint::ZERO_FIVE,
+                ),
+                relative_direction: Vec2::new(Flint::NEG_ONE, Flint::ZERO),
             },
         );
 
@@ -204,40 +208,19 @@ impl Forge {
         speed: Flint,
         lifetime: u32,
         components: &mut Components,
-    ) -> Entity {
-        let entity = self.factory.create();
-
-        let body = Body {
-            centroid,
-            rotation: direction,
-            shape: Shape::Rectangle(Rectangle {
-                width: Flint::new(1, 0),
-                height: Flint::new(1, 0),
+    ) {
+        components.logic.particles.push(Particle {
+            lifetime,
+            velocity: direction * speed,
+            body: Morph::one(Body {
+                centroid,
+                rotation: direction,
+                shape: Shape::Rectangle(Rectangle {
+                    width: Flint::ONE,
+                    height: Flint::ONE,
+                }),
+                color: Color::BLUE,
             }),
-            color: Color::BLUE,
-        };
-
-        components.logic.bodies.insert(entity, Morph::one(body));
-
-        components.logic.motions.insert(
-            entity,
-            Motion {
-                velocity: direction * speed,
-                speed_maximum: Flint::new(100, 0),
-                speed_minimum: Flint::ZERO,
-                acceleration: Flint::ZERO,
-                rotation_speed: Flint::ZERO,
-                rotation_speed_maximum: Flint::ZERO,
-                rotation_speed_minimum: Flint::ZERO,
-                rotation_acceleration: Flint::ZERO,
-            },
-        );
-
-        components
-            .logic
-            .lifetimes
-            .insert(entity, Lifetime { value: lifetime });
-
-        entity
+        });
     }
 }

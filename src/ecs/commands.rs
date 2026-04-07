@@ -174,7 +174,10 @@ fn spawn(
             direction,
             speed,
             lifetime,
-        } => forge.particle(*centroid, *direction, *speed, *lifetime, components),
+        } => {
+            forge.particle(*centroid, *direction, *speed, *lifetime, components);
+            return;
+        }
     };
 
     events.push(CosmosEvent::Spawned { id: *id, entity });

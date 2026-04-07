@@ -8,15 +8,10 @@ impl Random {
     }
 
     pub fn next(&mut self) -> u64 {
-        let mut x = self.state;
-
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-
-        self.state = x;
-
-        x
+        self.state ^= self.state << 13;
+        self.state ^= self.state >> 7;
+        self.state ^= self.state << 17;
+        self.state
     }
 
     pub fn range(&mut self, min: u64, max: u64) -> u64 {

@@ -16,7 +16,7 @@ pub struct Logic {
     pub owners: SparseSet<Owner>,
     pub spawn_protections: SparseSet<SpawnProtection>,
     pub exhaust_emitters: SparseSet<ExhaustEmitter>,
-    pub lifetimes: SparseSet<Lifetime>,
+    pub particles: Vec<Particle>,
 }
 
 pub struct Render {
@@ -24,6 +24,7 @@ pub struct Render {
     pub hitboxes: SparseSet<Morph<EngineRectangle<f32>>>,
     pub cosmos_bounds: EngineRectangle<f32>,
     pub quadtree_nodes: Vec<EngineRectangle<f32>>,
+    pub particles: Vec<Morph<Body<f32>>>,
 }
 
 pub struct Components {
@@ -46,13 +47,14 @@ impl Components {
                 owners: SparseSet::new(capacity),
                 spawn_protections: SparseSet::new(capacity),
                 exhaust_emitters: SparseSet::new(capacity),
-                lifetimes: SparseSet::new(capacity),
+                particles: Vec::new(),
             },
             render: Render {
                 bodies: SparseSet::new(capacity),
                 hitboxes: SparseSet::new(capacity),
                 cosmos_bounds: cosmos_bounds.into(),
                 quadtree_nodes: Vec::new(),
+                particles: Vec::new(),
             },
         }
     }
@@ -67,7 +69,6 @@ impl Components {
         self.logic.owners.remove(entity);
         self.logic.spawn_protections.remove(entity);
         self.logic.exhaust_emitters.remove(entity);
-        self.logic.lifetimes.remove(entity);
 
         self.render.bodies.remove(entity);
         self.render.hitboxes.remove(entity);
@@ -128,9 +129,13 @@ pub struct SpawnProtection;
 pub struct ExhaustEmitter {
     pub lifetime_maximum: u32,
     pub lifetime: u32,
-    pub size: i16,
+    pub width: i16,
+    pub relative_position: Vec2<Flint>,
+    pub relative_direction: Vec2<Flint>,
 }
 
-pub struct Lifetime {
-    pub value: u32,
+pub struct Particle {
+    pub lifetime: u32,
+    pub velocity: Vec2<Flint>,
+    pub body: Morph<Body<Flint>>,
 }

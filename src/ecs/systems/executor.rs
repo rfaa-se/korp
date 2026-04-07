@@ -5,7 +5,10 @@ use crate::{
     bus::events::CosmosEvent,
     ecs::{
         commands::{Command, SpawnKind},
-        components::{Body, Components, Rectangle, Shape, Triangle, traits::Vertexable},
+        components::{
+            Body, Components, Rectangle, Shape, Triangle,
+            traits::{Transformable, Vertexable},
+        },
     },
     quadtree::Quadtree,
 };
@@ -28,29 +31,29 @@ impl Executor {
         quadtree: &mut Quadtree,
         events: &mut Vec<CosmosEvent>,
     ) {
-        morph_body(components);
+        morph_bodies(components);
         morph_vertices(components);
-        motion(components);
+        motions(components);
         vertices(components);
-        hitbox(components);
+        hitboxes(components);
         rebuild_quadtree(components, quadtree);
-        spawn_protection(components);
-        collision(components, quadtree, events);
+        spawn_protections(components);
+        collisions(components, quadtree, events);
         out_of_cosmos_bounds(cosmos_bounds, components, commands);
-        constant_accelerate(components, commands);
-        exhaust_emitter(components, random, commands);
-        lifetime(components, commands);
+        constant_accelerators(components, commands);
+        exhaust_emitters(components, random, commands);
+        particles(components);
 
-        morph_body_render(components);
-        morph_hitbox_render(components);
-        body_render(components);
-        hitbox_render(components);
+        morph_bodies_render(components);
+        morph_hitboxes_render(components);
+        bodies_render(components);
+        hitboxes_render(components);
         quadtree_nodes_render(components, quadtree);
         cosmos_bounds_render(components, cosmos_bounds);
     }
 }
 
-fn morph_body(components: &mut Components) {
+fn morph_bodies(components: &mut Components) {
     for (_, body) in components.logic.bodies.iter_mut() {
         body.old = body.new;
     }
@@ -78,7 +81,7 @@ fn vertices(components: &mut Components) {
     }
 }
 
-fn hitbox(components: &mut Components) {
+fn hitboxes(components: &mut Components) {
     for (&entity, vertices) in components.logic.vertices.iter() {
         let Some((xmin, xmax, ymin, ymax)) = vertices
             .old
@@ -111,7 +114,7 @@ fn hitbox(components: &mut Components) {
     }
 }
 
-fn spawn_protection(components: &mut Components) {
+fn spawn_protections(components: &mut Components) {
     let mut removed = Vec::new();
 
     for (entity, _) in components.logic.spawn_protections.iter() {
@@ -137,7 +140,7 @@ fn spawn_protection(components: &mut Components) {
     }
 }
 
-fn collision(components: &mut Components, quadtree: &Quadtree, events: &mut Vec<CosmosEvent>) {
+fn collisions(components: &mut Components, quadtree: &Quadtree, events: &mut Vec<CosmosEvent>) {
     let project = |vertices: &[Vec2<Flint>], axis: Vec2<Flint>| {
         let mut min = axis.dot(&vertices[0]);
         let mut max = min;
@@ -227,19 +230,19 @@ fn collision(components: &mut Components, quadtree: &Quadtree, events: &mut Vec<
     }
 }
 
-fn morph_body_render(components: &mut Components) {
+fn morph_bodies_render(components: &mut Components) {
     for (_, body) in components.render.bodies.iter_mut() {
         body.old = body.new;
     }
 }
 
-fn morph_hitbox_render(components: &mut Components) {
+fn morph_hitboxes_render(components: &mut Components) {
     for (_, hitbox) in components.render.hitboxes.iter_mut() {
         hitbox.old = hitbox.new;
     }
 }
 
-fn body_render(components: &mut Components) {
+fn bodies_render(components: &mut Components) {
     for (&entity, lb) in components.logic.bodies.iter() {
         let body = Body {
             centroid: lb.new.centroid.into(),
@@ -287,7 +290,7 @@ fn body_render(components: &mut Components) {
     }
 }
 
-fn hitbox_render(components: &mut Components) {
+fn hitboxes_render(components: &mut Components) {
     for (&entity, lhb) in components.logic.hitboxes.iter() {
         let rectangle = EngineRectangle {
             x: lhb.x.into(),
@@ -319,7 +322,7 @@ fn cosmos_bounds_render(components: &mut Components, cosmos_bounds: EngineRectan
     components.render.cosmos_bounds = cosmos_bounds.into();
 }
 
-fn motion(components: &mut Components) {
+fn motions(components: &mut Components) {
     for (entity, motion) in components.logic.motions.iter_mut() {
         let Some(body) = components.logic.bodies.get_mut(entity) else {
             continue;
@@ -389,7 +392,7 @@ fn out_of_cosmos_bounds(
     }
 }
 
-fn constant_accelerate(components: &mut Components, commands: &mut Vec<Command>) {
+fn constant_accelerators(components: &mut Components, commands: &mut Vec<Command>) {
     for (&entity, _) in components.logic.constant_accelerators.iter() {
         commands.push(Command::Accelerate(entity));
     }
@@ -403,7 +406,7 @@ fn rebuild_quadtree(components: &Components, quadtree: &mut Quadtree) {
     }
 }
 
-fn exhaust_emitter(components: &mut Components, random: &mut Random, commands: &mut Vec<Command>) {
+fn exhaust_emitters(components: &mut Components, random: &mut Random, commands: &mut Vec<Command>) {
     for (entity, emitter) in components.logic.exhaust_emitters.iter_mut() {
         if emitter.lifetime == 0 {
             continue;
@@ -412,10 +415,10 @@ fn exhaust_emitter(components: &mut Components, random: &mut Random, commands: &
         emitter.lifetime -= 1;
 
         if let Some(body) = components.logic.bodies.get(entity) {
-            let direction = body.new.rotation * -1;
+            let direction = body.new.rotation.rotated_v(emitter.relative_direction);
 
-            let half = emitter.size / 2;
-            for i in 0..emitter.size {
+            let half = emitter.width / 2;
+            for i in 0..emitter.width {
                 let centroid = body.new.centroid
                     + match body.new.shape {
                         Shape::Triangle(triangle) => {
@@ -442,12 +445,21 @@ fn exhaust_emitter(components: &mut Components, random: &mut Random, commands: &
     }
 }
 
-fn lifetime(components: &mut Components, commands: &mut Vec<Command>) {
-    for (entity, lifetime) in components.logic.lifetimes.iter_mut() {
-        if lifetime.value > 0 {
-            lifetime.value -= 1;
-        } else {
-            commands.push(Command::Kill(*entity));
+fn particles(components: &mut Components) {
+    components.render.particles.clear();
+
+    components.logic.particles.retain_mut(|x| {
+        if x.lifetime == 0 {
+            return false;
         }
-    }
+
+        x.lifetime -= 1;
+
+        x.body.old = x.body.new;
+        x.body.new.centroid += x.velocity;
+
+        components.render.particles.push(x.body.transform());
+
+        true
+    });
 }
