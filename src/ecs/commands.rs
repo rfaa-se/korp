@@ -82,7 +82,11 @@ fn accelerate(entity: &Entity, components: &mut Components) {
     motion.velocity += body.new.rotation * motion.acceleration;
 
     if let Some(emitter) = components.logic.exhaust_emitters.get_mut(entity) {
-        emitter.lifetime = emitter.lifetime_maximum;
+        emitter.lifetime += 1;
+
+        if emitter.lifetime > emitter.lifetime_maximum {
+            emitter.lifetime = emitter.lifetime_maximum;
+        }
     }
 }
 
@@ -175,6 +179,7 @@ fn spawn(
             speed,
             lifetime,
         } => {
+            // particles are not entities
             forge.particle(*centroid, *direction, *speed, *lifetime, components);
             return;
         }

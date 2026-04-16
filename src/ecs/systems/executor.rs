@@ -407,39 +407,42 @@ fn rebuild_quadtree(components: &Components, quadtree: &mut Quadtree) {
 }
 
 fn exhaust_emitters(components: &mut Components, random: &mut Random, commands: &mut Vec<Command>) {
-    for (entity, emitter) in components.logic.exhaust_emitters.iter_mut() {
-        if emitter.lifetime == 0 {
-            continue;
-        }
-
+    for (entity, emitter) in components
+        .logic
+        .exhaust_emitters
+        .iter_mut()
+        .filter(|(_, emitter)| emitter.lifetime > 0)
+    {
         emitter.lifetime -= 1;
 
-        if let Some(body) = components.logic.bodies.get(entity) {
+        if let (Some(body), Some(motion)) = (
+            components.logic.bodies.get(entity),
+            components.logic.motions.get(entity),
+        ) {
             let direction = body.new.rotation.rotated_v(emitter.relative_direction);
+            let mut distance = motion.velocity.len();
+            let relative_speed = distance * Flint::ZERO_FIVE;
+            let half = emitter.width * Flint::ZERO_FIVE;
 
-            let half = emitter.width / 2;
-            for i in 0..emitter.width {
+            while distance > Flint::ZERO {
+                let x = -Flint::from_i16(random.range(0, distance.to_i16().max(1) as u64) as i16);
+                let y =
+                    Flint::from_i16(random.range(0, emitter.width.to_i16() as u64) as i16) - half;
                 let centroid = body.new.centroid
-                    + match body.new.shape {
-                        Shape::Triangle(triangle) => {
-                            let middle = (triangle.left + triangle.right) * Flint::ZERO_FIVE;
-                            Vec2::new(middle.x, middle.y + Flint::new(i - half, 0))
-                        }
-                        Shape::Rectangle(rectangle) => {
-                            Vec2::new(rectangle.width * Flint::ZERO_FIVE, rectangle.height)
-                        }
-                    }
-                    .rotated_v(body.new.rotation);
+                    + (emitter.relative_position + Vec2::new(x, y)).rotated_v(body.new.rotation);
 
                 commands.push(Command::Spawn {
                     id: None,
                     kind: SpawnKind::Particle {
                         centroid,
                         direction,
-                        speed: Flint::new(random.range(0, 4) as i16, random.range(0, 256) as u16),
+                        speed: relative_speed
+                            + Flint::new(random.range(0, 4) as i16, random.range(0, 512) as u16),
                         lifetime: random.range(4, 20) as u32,
                     },
                 });
+
+                distance -= Flint::ONE;
             }
         }
     }
@@ -454,6 +457,22 @@ fn particles(components: &mut Components) {
         }
 
         x.lifetime -= 1;
+
+        let alpha = 36;
+
+        if x.body.new.color.a >= alpha {
+            x.body.new.color.a -= alpha;
+
+            if x.body.new.color.a < alpha {
+                x.lifetime = 0;
+            }
+        }
+
+        let blue = 20;
+
+        if x.body.new.color.b >= blue {
+            x.body.new.color.b -= blue;
+        }
 
         x.body.old = x.body.new;
         x.body.new.centroid += x.velocity;

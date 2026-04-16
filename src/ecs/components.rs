@@ -129,7 +129,7 @@ pub struct SpawnProtection;
 pub struct ExhaustEmitter {
     pub lifetime_maximum: u32,
     pub lifetime: u32,
-    pub width: i16,
+    pub width: Flint,
     pub relative_position: Vec2<Flint>,
     pub relative_direction: Vec2<Flint>,
 }

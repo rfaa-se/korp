@@ -78,7 +78,7 @@ impl Forge {
             ExhaustEmitter {
                 lifetime_maximum: 5,
                 lifetime: 0,
-                width: 7,
+                width: Flint::from_i16(7),
                 relative_position: Vec2::new(
                     (left.x + right.x) * Flint::ZERO_FIVE,
                     (left.y + right.y) * Flint::ZERO_FIVE,
