@@ -1,6 +1,10 @@
+use korp_math::Random;
+
 use crate::{
     bus::{Bus, events::CosmosEvent},
-    ecs::{commands::Command, components::Components, entities::Entity, tracker::Tracker},
+    ecs::{
+        commands::Command, components::Components, entities::Entity, forge::Forge, tracker::Tracker,
+    },
 };
 
 pub struct Processor {}
@@ -10,18 +14,26 @@ impl Processor {
         Self {}
     }
 
-    pub fn process(
+    pub fn update(
         &self,
+        random: &mut Random,
         components: &mut Components,
+        graveyard: &mut Components,
         tracker: &mut Tracker,
         events: &mut Vec<CosmosEvent>,
         commands: &mut Vec<Command>,
+        forge: &mut Forge,
         bus: &mut Bus,
     ) {
         for event in events.drain(..) {
             match event {
                 CosmosEvent::Died(entity) => {
+                    if graveyard.logic.death_explosives.get(&entity).is_some() {
+                        forge.explode(entity, random, components, graveyard);
+                    }
+
                     tracker.death(&entity, bus);
+                    // TODO: save dead entity, remove from graveyard next tick
                 }
                 CosmosEvent::Collided {
                     alpha,

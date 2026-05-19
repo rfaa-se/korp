@@ -1,10 +1,11 @@
 use korp_engine::{color::Color, misc::Morph};
-use korp_math::{Flint, Vec2};
+use korp_math::{Flint, Random, Vec2};
 
 use crate::ecs::{
     components::{
-        Body, CollisionFilter, Components, ConstantAccelerator, ExhaustEmitter, Motion, Owner,
-        Particle, Rectangle, Shape, SpawnProtection, Triangle,
+        Accelerator, Body, CollisionFilter, Components, DeathExplosive, ExhaustEmitter,
+        LeftRotator, Motion, Owner, Particle, Rectangle, RightRotator, Shape, SpawnProtection,
+        Triangle,
     },
     entities::{Entity, EntityFactory},
     systems::COSMIC_DRAG,
@@ -86,6 +87,11 @@ impl Forge {
                 relative_direction: Vec2::new(Flint::NEG_ONE, Flint::ZERO),
             },
         );
+
+        components
+            .logic
+            .death_explosives
+            .insert(entity, DeathExplosive);
 
         entity
     }
@@ -175,10 +181,7 @@ impl Forge {
             },
         );
 
-        components
-            .logic
-            .constant_accelerators
-            .insert(entity, ConstantAccelerator);
+        components.logic.accelerators.insert(entity, Accelerator);
 
         components.logic.collision_filters.insert(
             entity,
@@ -222,5 +225,108 @@ impl Forge {
                 color: Color::BLUE,
             }),
         });
+    }
+
+    pub fn explode(
+        &mut self,
+        entity: Entity,
+        random: &mut Random,
+        components: &mut Components,
+        graveyard: &Components,
+    ) {
+        let Some(body) = graveyard.logic.bodies.get(&entity) else {
+            return;
+        };
+
+        let rnd_point = |t: Triangle<Flint>, rnd: &mut Random| {
+            let r1 = Flint::new(0, rnd.range_u16(0, u16::MAX)).sqrt();
+            let r2 = Flint::new(0, rnd.range_u16(0, u16::MAX));
+            let one = Flint::ONE;
+
+            let x = (one - r1) * t.top.x + (r1 * (one - r2)) * t.left.x + (r1 * r2) * t.right.x;
+            let y = (one - r1) * t.top.y + (r1 * (one - r2)) * t.left.y + (r1 * r2) * t.right.y;
+
+            Vec2::new(x, y)
+        };
+
+        let calc_centroid = |a: Vec2<Flint>, b: Vec2<Flint>, c: Vec2<Flint>| {
+            Vec2::new((a.x + b.x + c.x) / 3.into(), (a.y + b.y + c.y) / 3.into())
+        };
+
+        let rotation = body.new.rotation;
+        let centroid_origin = body.new.centroid;
+
+        let calc_centroid_shard =
+            |a: Vec2<Flint>, b: Vec2<Flint>, c: Vec2<Flint>, centroid: Vec2<Flint>| {
+                let centroid_local = calc_centroid(a, b, c);
+                let shard = Triangle {
+                    top: a - centroid_local,
+                    left: b - centroid_local,
+                    right: c - centroid_local,
+                };
+
+                (centroid + centroid_local.rotated_v(rotation), shard)
+            };
+
+        match body.new.shape {
+            Shape::Triangle(triangle) => {
+                let size = 3;
+                let mut shards = vec![(body.new.centroid, triangle)];
+
+                while shards.len() < size {
+                    let idx = random.range_usize(0, shards.len());
+                    let (centroid, shard) = shards.remove(idx);
+                    let half = Triangle {
+                        top: shard.top * Flint::ZERO_FIVE,
+                        left: shard.left * Flint::ZERO_FIVE,
+                        right: shard.right * Flint::ZERO_FIVE,
+                    };
+
+                    let p = rnd_point(half, random);
+
+                    let (c1, s1) = calc_centroid_shard(shard.top, shard.left, p, centroid);
+                    let (c2, s2) = calc_centroid_shard(shard.left, shard.right, p, centroid);
+                    let (c3, s3) = calc_centroid_shard(shard.right, shard.top, p, centroid);
+
+                    shards.push((c1, s1));
+                    shards.push((c2, s2));
+                    shards.push((c3, s3));
+                }
+
+                for (i, (centroid, shard)) in shards.into_iter().enumerate() {
+                    let e = self.factory.create();
+                    let body = Body {
+                        centroid,
+                        rotation,
+                        shape: Shape::Triangle(shard),
+                        color: body.new.color,
+                    };
+
+                    if i % 2 == 0 {
+                        components.logic.left_rotators.insert(e, LeftRotator);
+                    } else {
+                        components.logic.right_rotators.insert(e, RightRotator);
+                    }
+
+                    components.logic.bodies.insert(e, Morph::one(body));
+                    components.logic.motions.insert(
+                        e,
+                        Motion {
+                            velocity: (centroid - centroid_origin).normalized() * Flint::new(8, 0),
+                            speed_maximum: 8.into(),
+                            speed_minimum: 0.into(),
+                            acceleration: Flint::new(1, 0),
+                            rotation_speed: 10.into(),
+                            rotation_speed_maximum: 10.into(),
+                            rotation_speed_minimum: 0.into(),
+                            rotation_acceleration: Flint::new(0, Flint::POINT_ONE),
+                        },
+                    );
+                }
+            }
+            Shape::Rectangle(_) => {
+                // TODO
+            }
+        }
     }
 }

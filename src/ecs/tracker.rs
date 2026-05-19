@@ -24,7 +24,7 @@ impl Tracker {
 
     pub fn update(&mut self, components: &Components, bus: &mut Bus) {
         for entity in self.movement.iter() {
-            if let Some(body) = components.logic.bodies.get(&entity) {
+            if let Some(body) = components.logic.bodies.get(entity) {
                 bus.send(CosmosEvent::TrackedMovement {
                     entity: *entity,
                     centroid: body.new.centroid,

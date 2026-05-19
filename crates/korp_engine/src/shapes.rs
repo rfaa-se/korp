@@ -66,13 +66,13 @@ impl Rectangle<Flint> {
     }
 }
 
-impl Into<Rectangle<f32>> for Rectangle<Flint> {
-    fn into(self) -> Rectangle<f32> {
+impl From<Rectangle<Flint>> for Rectangle<f32> {
+    fn from(val: Rectangle<Flint>) -> Self {
         Rectangle {
-            x: self.x.into(),
-            y: self.y.into(),
-            width: self.width.into(),
-            height: self.height.into(),
+            x: val.x.into(),
+            y: val.y.into(),
+            width: val.width.into(),
+            height: val.height.into(),
         }
     }
 }

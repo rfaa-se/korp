@@ -31,6 +31,7 @@ pub enum Toggle {
 pub struct Cosmos {
     bounds: Rectangle<Flint>,
     components: Components,
+    graveyard: Components,
     forge: Forge,
     executor: Executor,
     observer: Observer,
@@ -53,6 +54,7 @@ impl Cosmos {
         Self {
             bounds,
             components: Components::new(bounds),
+            graveyard: Components::new(bounds),
             forge: Forge::new(),
             executor: Executor::new(),
             observer: Observer::new(),
@@ -72,7 +74,7 @@ impl Cosmos {
     pub fn update(&mut self, bus: &mut Bus, random: &mut Random, commands: &[Vec<Command>]) {
         self.execute_commands(commands);
 
-        self.executor.execute(
+        self.executor.update(
             self.bounds,
             random,
             &mut self.components,
@@ -81,11 +83,14 @@ impl Cosmos {
             &mut self.events,
         );
 
-        self.processor.process(
+        self.processor.update(
+            random,
             &mut self.components,
+            &mut self.graveyard,
             &mut self.tracker,
             &mut self.events,
             &mut self.commands,
+            &mut self.forge,
             bus,
         );
 
@@ -121,11 +126,21 @@ impl Cosmos {
 
     fn execute_commands(&mut self, commands: &[Vec<Command>]) {
         for command in self.commands.drain(..) {
-            command.execute(&mut self.components, &mut self.forge, &mut self.events);
+            command.execute(
+                &mut self.components,
+                &mut self.graveyard,
+                &mut self.forge,
+                &mut self.events,
+            );
         }
 
         for command in commands.iter().flatten() {
-            command.execute(&mut self.components, &mut self.forge, &mut self.events);
+            command.execute(
+                &mut self.components,
+                &mut self.graveyard,
+                &mut self.forge,
+                &mut self.events,
+            );
         }
     }
 }

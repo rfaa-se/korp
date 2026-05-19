@@ -145,6 +145,7 @@ impl Add for Flint {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
+        // println!("{} {}", self.raw, rhs.raw);
         Self {
             raw: self.raw + rhs.raw,
         }
@@ -227,8 +228,8 @@ impl From<i16> for Flint {
     }
 }
 
-impl Into<f32> for Flint {
-    fn into(self) -> f32 {
-        self.to_f32()
+impl From<Flint> for f32 {
+    fn from(val: Flint) -> Self {
+        val.to_f32()
     }
 }

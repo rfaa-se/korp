@@ -64,7 +64,10 @@ impl Renderable for Morph<Body<f32>> {
                 }
             }
             // TODO: can't currently morph between different shapes, draw old or new?
-            _ => panic!("wtf drawable shapes"),
+            _ => panic!(
+                "wtf drawable shapes {:?} {:?}",
+                self.old.shape, self.new.shape
+            ),
         }
     }
 }

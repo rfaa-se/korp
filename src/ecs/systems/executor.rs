@@ -22,7 +22,7 @@ impl Executor {
         Self {}
     }
 
-    pub fn execute(
+    pub fn update(
         &mut self,
         cosmos_bounds: EngineRectangle<Flint>,
         random: &mut Random,
@@ -40,7 +40,9 @@ impl Executor {
         spawn_protections(components);
         collisions(components, quadtree, events);
         out_of_cosmos_bounds(cosmos_bounds, components, commands);
-        constant_accelerators(components, commands);
+        accelerators(components, commands);
+        left_rotators(components, commands);
+        right_rotators(components, commands);
         exhaust_emitters(components, random, commands);
         particles(components);
 
@@ -145,8 +147,9 @@ fn collisions(components: &mut Components, quadtree: &Quadtree, events: &mut Vec
         let mut min = axis.dot(&vertices[0]);
         let mut max = min;
 
-        for i in 1..vertices.len() {
-            let projection = axis.dot(&vertices[i]);
+        for vertice in vertices.iter().skip(1) {
+            let projection = axis.dot(vertice);
+
             if projection < min {
                 min = projection;
             } else if projection > max {
@@ -392,9 +395,21 @@ fn out_of_cosmos_bounds(
     }
 }
 
-fn constant_accelerators(components: &mut Components, commands: &mut Vec<Command>) {
-    for (&entity, _) in components.logic.constant_accelerators.iter() {
+fn accelerators(components: &mut Components, commands: &mut Vec<Command>) {
+    for (&entity, _) in components.logic.accelerators.iter() {
         commands.push(Command::Accelerate(entity));
+    }
+}
+
+fn left_rotators(components: &mut Components, commands: &mut Vec<Command>) {
+    for (&entity, _) in components.logic.left_rotators.iter() {
+        commands.push(Command::RotateLeft(entity));
+    }
+}
+
+fn right_rotators(components: &mut Components, commands: &mut Vec<Command>) {
+    for (&entity, _) in components.logic.right_rotators.iter() {
+        commands.push(Command::RotateRight(entity));
     }
 }
 
@@ -423,21 +438,34 @@ fn exhaust_emitters(components: &mut Components, random: &mut Random, commands: 
             let mut distance = motion.velocity.len();
             let relative_speed = distance * Flint::ZERO_FIVE;
             let half = emitter.width * Flint::ZERO_FIVE;
+            let width = emitter.width.to_i16() as u64;
+            let jitter_max = 100;
+            let jitter_half = (jitter_max / 2) as i16;
+            let jitter_inv = Flint::ONE / Flint::from_i16(jitter_max as i16);
 
             while distance > Flint::ZERO {
                 let x = -Flint::from_i16(random.range(0, distance.to_i16().max(1) as u64) as i16);
-                let y =
-                    Flint::from_i16(random.range(0, emitter.width.to_i16() as u64) as i16) - half;
-                let centroid = body.new.centroid
-                    + (emitter.relative_position + Vec2::new(x, y)).rotated_v(body.new.rotation);
+                let y = Flint::from_i16(random.range(0, width) as i16) - half;
+                let rotated =
+                    (emitter.relative_position + Vec2::new(x, y)).rotated_v(body.new.rotation);
+                let centroid = body.new.centroid + rotated;
+                let speed = Flint::new(
+                    random.range(0, 4) as i16,
+                    random.range(0, u16::MAX as u64) as u16,
+                );
+
+                let jitter = Vec2::new(
+                    Flint::from_i16(random.range(0, jitter_max) as i16 - jitter_half) * jitter_inv,
+                    Flint::from_i16(random.range(0, jitter_max) as i16 - jitter_half) * jitter_inv,
+                );
+                let direction = (direction + jitter).normalized();
 
                 commands.push(Command::Spawn {
                     id: None,
                     kind: SpawnKind::Particle {
                         centroid,
                         direction,
-                        speed: relative_speed
-                            + Flint::new(random.range(0, 4) as i16, random.range(0, 512) as u16),
+                        speed: relative_speed + speed,
                         lifetime: random.range(4, 20) as u32,
                     },
                 });

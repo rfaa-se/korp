@@ -33,11 +33,14 @@ impl Vec2<Flint> {
     }
 
     pub fn len_sqr(&self) -> Flint {
-        self.dot(&self)
+        self.dot(self)
     }
 
     pub fn dot(&self, v: &Vec2<Flint>) -> Flint {
-        self.x * v.x + self.y * v.y
+        Flint::from_raw(
+            (((self.x.raw as i64 * v.x.raw as i64) >> 16)
+                + ((self.y.raw as i64 * v.y.raw as i64) >> 16)) as i32,
+        )
     }
 
     pub fn rotated(&self, degrees: Flint) -> Self {

@@ -18,4 +18,12 @@ impl Random {
         let range = max - min;
         min + (self.next() % range)
     }
+
+    pub fn range_u16(&mut self, min: u16, max: u16) -> u16 {
+        self.range(min as u64, max as u64) as u16
+    }
+
+    pub fn range_usize(&mut self, min: usize, max: usize) -> usize {
+        self.range(min as u64, max as u64) as usize
+    }
 }

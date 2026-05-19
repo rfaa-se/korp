@@ -166,7 +166,7 @@ impl Game {
 
     pub fn update(&mut self, bus: &mut Bus) {
         while let Some(action) = self.actions.pop() {
-            self.state.handle(action, bus, &mut self.data);
+            self.state.handle(action, bus);
         }
 
         self.state
@@ -222,7 +222,6 @@ impl Game {
 
         if let Event::Cosmos(IntentEvent::Event(event)) = event {
             self.event_cosmos(event);
-            return;
         }
     }
 
@@ -347,11 +346,11 @@ impl Game {
         }
 
         if input.is_down(&self.keybindings.left) {
-            self.data.commands.push(Command::TurnLeft(pid));
+            self.data.commands.push(Command::RotateLeft(pid));
         }
 
         if input.is_down(&self.keybindings.right) {
-            self.data.commands.push(Command::TurnRight(pid));
+            self.data.commands.push(Command::RotateRight(pid));
         }
 
         if input.is_down(&self.keybindings.shoot) {
@@ -369,7 +368,7 @@ impl Game {
 }
 
 impl State {
-    fn handle(&mut self, action: Action, bus: &mut Bus, data: &mut Data) {
+    fn handle(&mut self, action: Action, bus: &mut Bus) {
         bus.send(GameEvent::Action(action.clone()));
 
         match (&self, action) {
@@ -377,13 +376,13 @@ impl State {
                 bus.send(NetworkIntent::Pause);
             }
             (State::Running, Action::Paused) => {
-                self.handle(Action::Transition(State::Paused), bus, data);
+                self.handle(Action::Transition(State::Paused), bus);
             }
             (State::Paused, Action::Resume) => {
                 bus.send(NetworkIntent::Resume);
             }
             (State::Paused, Action::Resumed) => {
-                self.handle(Action::Transition(State::Running), bus, data);
+                self.handle(Action::Transition(State::Running), bus);
             }
             (_, Action::Transition(state)) => {
                 *self = state;
@@ -418,7 +417,7 @@ impl State {
         let has_history = data.commands_history.len() > data.tick;
         if !has_history {
             if !matches!(self, State::Stalling) {
-                self.handle(Action::Transition(State::Stalling), bus, data);
+                self.handle(Action::Transition(State::Stalling), bus);
             }
 
             return;
@@ -427,14 +426,14 @@ impl State {
         let has_commands = data.commands_history[data.tick].len() >= data.ids.len();
         if !has_commands {
             if !matches!(self, State::Stalling) {
-                self.handle(Action::Transition(State::Stalling), bus, data);
+                self.handle(Action::Transition(State::Stalling), bus);
             }
 
             return;
         }
 
         if matches!(self, State::Stalling) {
-            self.handle(Action::Transition(State::Running), bus, data);
+            self.handle(Action::Transition(State::Running), bus);
         }
     }
 }

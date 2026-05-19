@@ -23,10 +23,21 @@ impl Bus {
             // // let's not print these...
             match event {
                 Event::Cosmos(IntentEvent::Event(CosmosEvent::TrackedMovement { .. })) => continue,
+                Event::Network(IntentEvent::Event(events::NetworkEvent::Commands {
+                    commands,
+                    ..
+                })) if commands.len() == 0 => continue,
+                Event::Network(IntentEvent::Intent(events::NetworkIntent::Commands {
+                    commands,
+                    ..
+                })) if commands.len() == 0 => continue,
+                Event::Network(IntentEvent::Event(events::NetworkEvent::Action(
+                    crate::network::Action::Commands { commands, .. },
+                ))) if commands.len() == 0 => continue,
                 _ => (),
             }
 
-            // println!("{:?}", event);
+            println!("{:?}", event);
         }
     }
 

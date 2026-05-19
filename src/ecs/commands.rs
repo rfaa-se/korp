@@ -13,8 +13,8 @@ use crate::{
 pub enum Command {
     Accelerate(Entity),
     Decelerate(Entity),
-    TurnLeft(Entity),
-    TurnRight(Entity),
+    RotateLeft(Entity),
+    RotateRight(Entity),
     Shoot(Entity),
     Kill(Entity),
     Spawn { id: Option<usize>, kind: SpawnKind },
@@ -46,16 +46,17 @@ impl Command {
     pub fn execute(
         &self,
         components: &mut Components,
+        graveyard: &mut Components,
         forge: &mut Forge,
         events: &mut Vec<CosmosEvent>,
     ) {
         match self {
             Command::Accelerate(entity) => accelerate(entity, components),
             Command::Decelerate(entity) => decelerate(entity, components),
-            Command::TurnLeft(entity) => turn_left(entity, components),
-            Command::TurnRight(entity) => turn_right(entity, components),
+            Command::RotateLeft(entity) => rotate_left(entity, components),
+            Command::RotateRight(entity) => rotate_right(entity, components),
             Command::Shoot(entity) => shoot(entity, components, forge, events),
-            Command::Kill(entity) => kill(entity, components, forge, events),
+            Command::Kill(entity) => kill(entity, components, graveyard, forge, events),
             Command::Spawn { id, kind } => spawn(id, kind, components, forge, events),
         }
     }
@@ -64,9 +65,11 @@ impl Command {
 fn kill(
     entity: &Entity,
     components: &mut Components,
+    graveyard: &mut Components,
     forge: &mut Forge,
     events: &mut Vec<CosmosEvent>,
 ) {
+    components.transfer(*entity, graveyard);
     forge.destroy(*entity, components);
     events.push(CosmosEvent::Died(*entity));
 }
@@ -101,7 +104,7 @@ fn decelerate(entity: &Entity, components: &mut Components) {
     motion.velocity -= body.new.rotation * motion.acceleration;
 }
 
-fn turn_left(entity: &Entity, components: &mut Components) {
+fn rotate_left(entity: &Entity, components: &mut Components) {
     let Some(motion) = components.logic.motions.get_mut(entity) else {
         return;
     };
@@ -109,7 +112,7 @@ fn turn_left(entity: &Entity, components: &mut Components) {
     motion.rotation_speed -= motion.rotation_acceleration;
 }
 
-fn turn_right(entity: &Entity, components: &mut Components) {
+fn rotate_right(entity: &Entity, components: &mut Components) {
     let Some(motion) = components.logic.motions.get_mut(entity) else {
         return;
     };
