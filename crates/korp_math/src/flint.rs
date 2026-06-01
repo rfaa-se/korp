@@ -145,7 +145,6 @@ impl Add for Flint {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        // println!("{} {}", self.raw, rhs.raw);
         Self {
             raw: self.raw + rhs.raw,
         }

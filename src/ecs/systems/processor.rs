@@ -7,15 +7,17 @@ use crate::{
     },
 };
 
-pub struct Processor {}
+pub struct Processor {
+    dead: Vec<Entity>,
+}
 
 impl Processor {
     pub fn new() -> Self {
-        Self {}
+        Self { dead: Vec::new() }
     }
 
     pub fn update(
-        &self,
+        &mut self,
         random: &mut Random,
         components: &mut Components,
         graveyard: &mut Components,
@@ -25,6 +27,10 @@ impl Processor {
         forge: &mut Forge,
         bus: &mut Bus,
     ) {
+        for entity in self.dead.drain(..) {
+            graveyard.destroy(entity);
+        }
+
         for event in events.drain(..) {
             match event {
                 CosmosEvent::Died(entity) => {
@@ -33,7 +39,7 @@ impl Processor {
                     }
 
                     tracker.death(&entity, bus);
-                    // TODO: save dead entity, remove from graveyard next tick
+                    self.dead.push(entity);
                 }
                 CosmosEvent::Collided {
                     alpha,
