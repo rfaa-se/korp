@@ -7,6 +7,7 @@ pub mod collision_filter;
 pub mod traits;
 
 pub struct Logic {
+    pub particles: Vec<Particle>,
     pub bodies: SparseSet<Morph<Body<Flint>>>,
     pub hitboxes: SparseSet<EngineRectangle<Flint>>,
     pub motions: SparseSet<Motion>,
@@ -18,7 +19,6 @@ pub struct Logic {
     pub owners: SparseSet<Owner>,
     pub spawn_protections: SparseSet<SpawnProtection>,
     pub exhaust_emitters: SparseSet<ExhaustEmitter>,
-    pub particles: Vec<Particle>,
     pub death_explosives: SparseSet<DeathExplosive>,
 }
 
@@ -35,82 +35,65 @@ pub struct Components {
     pub render: Render,
 }
 
+impl Logic {
+    fn new() -> Self {
+        Self {
+            particles: Vec::new(),
+            bodies: SparseSet::new(),
+            hitboxes: SparseSet::new(),
+            motions: SparseSet::new(),
+            accelerators: SparseSet::new(),
+            left_rotators: SparseSet::new(),
+            right_rotators: SparseSet::new(),
+            collision_filters: SparseSet::new(),
+            vertices: SparseSet::new(),
+            owners: SparseSet::new(),
+            spawn_protections: SparseSet::new(),
+            exhaust_emitters: SparseSet::new(),
+            death_explosives: SparseSet::new(),
+        }
+    }
+}
+
+impl Render {
+    fn new(cosmos_bounds: EngineRectangle<Flint>) -> Self {
+        Self {
+            bodies: SparseSet::new(),
+            hitboxes: SparseSet::new(),
+            cosmos_bounds: cosmos_bounds.into(),
+            quadtree_nodes: Vec::new(),
+            particles: Vec::new(),
+        }
+    }
+}
+
 impl Components {
     pub fn new(cosmos_bounds: EngineRectangle<Flint>) -> Self {
-        let capacity = u16::MAX as usize;
-
         Self {
-            logic: Logic {
-                bodies: SparseSet::new(capacity),
-                hitboxes: SparseSet::new(capacity),
-                motions: SparseSet::new(capacity),
-                accelerators: SparseSet::new(capacity),
-                left_rotators: SparseSet::new(capacity),
-                right_rotators: SparseSet::new(capacity),
-                collision_filters: SparseSet::new(capacity),
-                vertices: SparseSet::new(capacity),
-                owners: SparseSet::new(capacity),
-                spawn_protections: SparseSet::new(capacity),
-                exhaust_emitters: SparseSet::new(capacity),
-                particles: Vec::new(),
-                death_explosives: SparseSet::new(capacity),
-            },
-            render: Render {
-                bodies: SparseSet::new(capacity),
-                hitboxes: SparseSet::new(capacity),
-                cosmos_bounds: cosmos_bounds.into(),
-                quadtree_nodes: Vec::new(),
-                particles: Vec::new(),
-            },
+            logic: Logic::new(),
+            render: Render::new(cosmos_bounds),
         }
     }
 
     pub fn destroy(&mut self, entity: Entity) {
-        self.logic.bodies.remove(entity);
-        self.logic.hitboxes.remove(entity);
-        self.logic.motions.remove(entity);
-        self.logic.accelerators.remove(entity);
-        self.logic.left_rotators.remove(entity);
-        self.logic.right_rotators.remove(entity);
-        self.logic.collision_filters.remove(entity);
-        self.logic.vertices.remove(entity);
-        self.logic.owners.remove(entity);
-        self.logic.spawn_protections.remove(entity);
-        self.logic.exhaust_emitters.remove(entity);
-        self.logic.death_explosives.remove(entity);
-
-        self.render.bodies.remove(entity);
-        self.render.hitboxes.remove(entity);
-    }
-
-    pub fn transfer(&mut self, entity: Entity, components: &mut Components) {
         let l = &mut self.logic;
-        let cl = &mut components.logic;
         let r = &mut self.render;
-        let cr = &mut components.render;
-        let e = entity;
 
-        transfer(e, &mut l.bodies, &mut cl.bodies);
-        transfer(e, &mut l.hitboxes, &mut cl.hitboxes);
-        transfer(e, &mut l.motions, &mut cl.motions);
-        transfer(e, &mut l.accelerators, &mut cl.accelerators);
-        transfer(e, &mut l.left_rotators, &mut cl.left_rotators);
-        transfer(e, &mut l.right_rotators, &mut cl.right_rotators);
-        transfer(e, &mut l.collision_filters, &mut cl.collision_filters);
-        transfer(e, &mut l.vertices, &mut cl.vertices);
-        transfer(e, &mut l.owners, &mut cl.owners);
-        transfer(e, &mut l.spawn_protections, &mut cl.spawn_protections);
-        transfer(e, &mut l.exhaust_emitters, &mut cl.exhaust_emitters);
-        transfer(e, &mut l.death_explosives, &mut cl.death_explosives);
+        l.bodies.remove(entity);
+        l.hitboxes.remove(entity);
+        l.motions.remove(entity);
+        l.accelerators.remove(entity);
+        l.left_rotators.remove(entity);
+        l.right_rotators.remove(entity);
+        l.collision_filters.remove(entity);
+        l.vertices.remove(entity);
+        l.owners.remove(entity);
+        l.spawn_protections.remove(entity);
+        l.exhaust_emitters.remove(entity);
+        l.death_explosives.remove(entity);
 
-        transfer(e, &mut r.bodies, &mut cr.bodies);
-        transfer(e, &mut r.hitboxes, &mut cr.hitboxes);
-    }
-}
-
-fn transfer<T>(entity: Entity, from: &mut SparseSet<T>, to: &mut SparseSet<T>) {
-    if let Some(component) = from.remove(entity) {
-        to.insert(entity, component);
+        r.bodies.remove(entity);
+        r.hitboxes.remove(entity);
     }
 }
 
@@ -125,7 +108,7 @@ pub struct Motion {
     pub rotation_acceleration: Flint,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Body<T> {
     pub centroid: Vec2<T>,
     pub rotation: Vec2<T>,

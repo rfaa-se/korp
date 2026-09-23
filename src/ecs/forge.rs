@@ -22,9 +22,8 @@ impl Forge {
         }
     }
 
-    pub fn destroy(&mut self, entity: Entity, components: &mut Components) {
-        self.factory.destroy(entity);
-        components.destroy(entity);
+    pub fn destroy(&mut self, entity: Entity) -> bool {
+        self.factory.destroy(entity)
     }
 
     pub fn triangle(&mut self, centroid: Vec2<Flint>, components: &mut Components) -> Entity {
@@ -227,17 +226,7 @@ impl Forge {
         });
     }
 
-    pub fn explode(
-        &mut self,
-        entity: Entity,
-        random: &mut Random,
-        components: &mut Components,
-        graveyard: &Components,
-    ) {
-        let Some(body) = graveyard.logic.bodies.get(&entity) else {
-            return;
-        };
-
+    pub fn explode(&mut self, body: Body<Flint>, random: &mut Random, components: &mut Components) {
         let rnd_point = |t: Triangle<Flint>, rnd: &mut Random| {
             let r1 = Flint::new(0, rnd.range_u16(0, u16::MAX)).sqrt();
             let r2 = Flint::new(0, rnd.range_u16(0, u16::MAX));
@@ -253,8 +242,8 @@ impl Forge {
             Vec2::new((a.x + b.x + c.x) / 3.into(), (a.y + b.y + c.y) / 3.into())
         };
 
-        let rotation = body.new.rotation;
-        let centroid_origin = body.new.centroid;
+        let rotation = body.rotation;
+        let centroid_origin = body.centroid;
 
         let calc_centroid_shard =
             |a: Vec2<Flint>, b: Vec2<Flint>, c: Vec2<Flint>, centroid: Vec2<Flint>| {
@@ -268,10 +257,10 @@ impl Forge {
                 (centroid + centroid_local.rotated_v(rotation), shard)
             };
 
-        match body.new.shape {
+        match body.shape {
             Shape::Triangle(triangle) => {
                 let size = 3;
-                let mut shards = vec![(body.new.centroid, triangle)];
+                let mut shards = vec![(body.centroid, triangle)];
 
                 while shards.len() < size {
                     let idx = random.range_usize(0, shards.len());
@@ -299,7 +288,7 @@ impl Forge {
                         centroid,
                         rotation,
                         shape: Shape::Triangle(shard),
-                        color: body.new.color,
+                        color: body.color,
                     };
 
                     if i % 2 == 0 {
@@ -326,6 +315,7 @@ impl Forge {
             }
             Shape::Rectangle(_) => {
                 // TODO
+                panic!("wtf explode rect");
             }
         }
     }

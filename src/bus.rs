@@ -26,14 +26,14 @@ impl Bus {
                 Event::Network(IntentEvent::Event(events::NetworkEvent::Commands {
                     commands,
                     ..
-                })) if commands.len() == 0 => continue,
+                })) if commands.is_empty() => continue,
                 Event::Network(IntentEvent::Intent(events::NetworkIntent::Commands {
                     commands,
                     ..
-                })) if commands.len() == 0 => continue,
+                })) if commands.is_empty() => continue,
                 Event::Network(IntentEvent::Event(events::NetworkEvent::Action(
                     crate::network::Action::Commands { commands, .. },
-                ))) if commands.len() == 0 => continue,
+                ))) if commands.is_empty() => continue,
                 _ => (),
             }
 

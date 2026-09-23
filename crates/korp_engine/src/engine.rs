@@ -34,6 +34,7 @@ pub struct Engine<T: Core> {
     title: String,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum State {
     Uninitialized,
     Initialized {

@@ -22,6 +22,12 @@ impl Korp {
     }
 }
 
+impl Default for Korp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Core for Korp {
     fn update(&mut self) {
         self.bus.update(&mut self.nexus, &mut self.network);

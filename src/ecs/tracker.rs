@@ -23,8 +23,8 @@ impl Tracker {
     }
 
     pub fn update(&mut self, components: &Components, bus: &mut Bus) {
-        for entity in self.movement.iter() {
-            if let Some(body) = components.logic.bodies.get(entity) {
+        for entity in &self.movement {
+            if let Some(body) = components.logic.bodies.get(*entity) {
                 bus.send(CosmosEvent::TrackedMovement {
                     entity: *entity,
                     centroid: body.new.centroid,
@@ -44,13 +44,13 @@ impl Tracker {
         }
     }
 
-    pub fn death(&mut self, entity: &Entity, bus: &mut Bus) {
+    pub fn death(&mut self, entity: Entity, bus: &mut Bus) {
         self.death.retain(|x| {
-            if x == entity {
-                bus.send(CosmosEvent::TrackedDeath(*entity));
+            if *x == entity {
+                bus.send(CosmosEvent::TrackedDeath(entity));
 
                 // no need to keep tracking movement if entity is dead
-                self.movement.retain(|x| x != entity);
+                self.movement.retain(|x| *x != entity);
 
                 return false;
             }

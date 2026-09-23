@@ -205,7 +205,7 @@ impl Game {
 
         // render ui
         renderer.draw_rectangle_lines(
-            Rectangle::from(800.0, 120.0, Vec2::new(400.0, 540.0)),
+            Rectangle::from(800_f32, 120_f32, Vec2::new(400.0, 540.0)),
             Vec2::new(1.0, 0.0),
             Vec2::new(400.0, 540.0),
             Color::GREEN,
@@ -256,7 +256,7 @@ impl Game {
                 self.cosmos
                     .event(&(CosmosIntent::Track(Track::Movement(*entity)).into()));
 
-                if let Some(body) = self.cosmos.components().logic.bodies.get(entity) {
+                if let Some(body) = self.cosmos.components().logic.bodies.get(*entity) {
                     self.camera_target.old = body.old.centroid.into();
                     self.camera_target.new = body.new.centroid.into();
                 }
@@ -310,24 +310,28 @@ impl Game {
         }
 
         if input.is_pressed(&self.keybindings.triangle) {
+            let point = self.camera.from_screen(input.mouse);
+
             self.data.commands.push(Command::Spawn {
                 id: None,
                 kind: SpawnKind::Triangle {
                     centroid: Vec2::new(
-                        Flint::from_i16(input.mouse.x as i16),
-                        Flint::from_i16(input.mouse.y as i16),
+                        Flint::from_i16(point.x as i16),
+                        Flint::from_i16(point.y as i16),
                     ),
                 },
             });
         }
 
         if input.is_pressed(&self.keybindings.rectangle) {
+            let point = self.camera.from_screen(input.mouse);
+
             self.data.commands.push(Command::Spawn {
                 id: None,
                 kind: SpawnKind::Rectangle {
                     centroid: Vec2::new(
-                        Flint::from_i16(input.mouse.x as i16),
-                        Flint::from_i16(input.mouse.y as i16),
+                        Flint::from_i16(point.x as i16),
+                        Flint::from_i16(point.y as i16),
                     ),
                 },
             });

@@ -13,7 +13,7 @@ impl Observer {
         Self {}
     }
 
-    pub fn observe(
+    pub fn render(
         &self,
         components: &Components,
         configuration: &Configuration,

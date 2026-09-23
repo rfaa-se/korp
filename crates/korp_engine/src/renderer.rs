@@ -27,7 +27,7 @@ pub(crate) struct RawRenderer {
     vertices: Vec<Vertex>,
     vertices_max: usize,
     batches: Vec<RenderBatch>,
-    camera: Camera,
+    pub(crate) camera: Camera,
     view_projections: Vec<[[f32; 4]; 4]>,
     view_projection_default: [[f32; 4]; 4],
     view_projection_stride: u32,
@@ -314,7 +314,7 @@ impl RawRenderer {
             label: Some("pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: shader,
                 entry_point: Some("vs_main"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 buffers: &[Vertex::description()],
@@ -323,7 +323,7 @@ impl RawRenderer {
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: shader,
                 entry_point: Some("fs_main"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 targets: &[Some(wgpu::ColorTargetState {

@@ -107,14 +107,12 @@ impl Mul<i16> for Vec2<Flint> {
 
 impl AddAssign for Vec2<Flint> {
     fn add_assign(&mut self, rhs: Self) {
-        self.x += rhs.x;
-        self.y += rhs.y;
+        *self = *self + rhs;
     }
 }
 
 impl SubAssign for Vec2<Flint> {
     fn sub_assign(&mut self, rhs: Self) {
-        self.x -= rhs.x;
-        self.y -= rhs.y;
+        *self = *self - rhs;
     }
 }

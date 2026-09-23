@@ -14,8 +14,7 @@ impl Uniform {
     pub(super) fn new(device: &mut wgpu::Device, view_projections_max: usize) -> Self {
         let stride = device.limits().min_uniform_buffer_offset_alignment as u64;
         let uniform_buffer_size = std::mem::size_of::<UniformBuffer>() as u64;
-        let size =
-            (((uniform_buffer_size + stride - 1) / stride) * stride) * view_projections_max as u64;
+        let size = (uniform_buffer_size.div_ceil(stride) * stride) * view_projections_max as u64;
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("uniform_buffer"),

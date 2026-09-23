@@ -46,35 +46,41 @@ impl Command {
     pub fn execute(
         &self,
         components: &mut Components,
-        graveyard: &mut Components,
         forge: &mut Forge,
         events: &mut Vec<CosmosEvent>,
     ) {
         match self {
-            Command::Accelerate(entity) => accelerate(entity, components),
-            Command::Decelerate(entity) => decelerate(entity, components),
-            Command::RotateLeft(entity) => rotate_left(entity, components),
-            Command::RotateRight(entity) => rotate_right(entity, components),
-            Command::Shoot(entity) => shoot(entity, components, forge, events),
-            Command::Kill(entity) => kill(entity, components, graveyard, forge, events),
+            Command::Accelerate(entity) => accelerate(*entity, components),
+            Command::Decelerate(entity) => decelerate(*entity, components),
+            Command::RotateLeft(entity) => rotate_left(*entity, components),
+            Command::RotateRight(entity) => rotate_right(*entity, components),
+            Command::Shoot(entity) => shoot(*entity, components, forge, events),
+            Command::Kill(entity) => kill(*entity, components, forge, events),
             Command::Spawn { id, kind } => spawn(id, kind, components, forge, events),
         }
     }
 }
 
 fn kill(
-    entity: &Entity,
+    entity: Entity,
     components: &mut Components,
-    graveyard: &mut Components,
     forge: &mut Forge,
     events: &mut Vec<CosmosEvent>,
 ) {
-    components.transfer(*entity, graveyard);
-    forge.destroy(*entity, components);
-    events.push(CosmosEvent::Died(*entity));
+    if forge.destroy(entity) {
+        let body = components.logic.bodies.remove(entity);
+
+        events.push(CosmosEvent::Died {
+            entity,
+            body: body.map(|x| x.new),
+            explode: components.logic.death_explosives.get(entity).is_some(),
+        });
+
+        components.destroy(entity);
+    }
 }
 
-fn accelerate(entity: &Entity, components: &mut Components) {
+fn accelerate(entity: Entity, components: &mut Components) {
     let (Some(motion), Some(body)) = (
         components.logic.motions.get_mut(entity),
         components.logic.bodies.get(entity),
@@ -93,7 +99,7 @@ fn accelerate(entity: &Entity, components: &mut Components) {
     }
 }
 
-fn decelerate(entity: &Entity, components: &mut Components) {
+fn decelerate(entity: Entity, components: &mut Components) {
     let (Some(motion), Some(body)) = (
         components.logic.motions.get_mut(entity),
         components.logic.bodies.get(entity),
@@ -104,7 +110,7 @@ fn decelerate(entity: &Entity, components: &mut Components) {
     motion.velocity -= body.new.rotation * motion.acceleration;
 }
 
-fn rotate_left(entity: &Entity, components: &mut Components) {
+fn rotate_left(entity: Entity, components: &mut Components) {
     let Some(motion) = components.logic.motions.get_mut(entity) else {
         return;
     };
@@ -112,7 +118,7 @@ fn rotate_left(entity: &Entity, components: &mut Components) {
     motion.rotation_speed -= motion.rotation_acceleration;
 }
 
-fn rotate_right(entity: &Entity, components: &mut Components) {
+fn rotate_right(entity: Entity, components: &mut Components) {
     let Some(motion) = components.logic.motions.get_mut(entity) else {
         return;
     };
@@ -121,7 +127,7 @@ fn rotate_right(entity: &Entity, components: &mut Components) {
 }
 
 fn shoot(
-    entity: &Entity,
+    entity: Entity,
     components: &mut Components,
     forge: &mut Forge,
     events: &mut Vec<CosmosEvent>,
@@ -149,7 +155,7 @@ fn shoot(
     spawn(
         &None,
         &SpawnKind::Projectile {
-            owner: *entity,
+            owner: entity,
             relative_speed,
             centroid,
             rotation,

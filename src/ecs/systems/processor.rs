@@ -7,39 +7,38 @@ use crate::{
     },
 };
 
-pub struct Processor {
-    dead: Vec<Entity>,
-}
+pub struct Processor {}
 
 impl Processor {
     pub fn new() -> Self {
-        Self { dead: Vec::new() }
+        Self {}
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
         random: &mut Random,
         components: &mut Components,
-        graveyard: &mut Components,
         tracker: &mut Tracker,
         events: &mut Vec<CosmosEvent>,
         commands: &mut Vec<Command>,
         forge: &mut Forge,
         bus: &mut Bus,
     ) {
-        for entity in self.dead.drain(..) {
-            graveyard.destroy(entity);
-        }
-
         for event in events.drain(..) {
             match event {
-                CosmosEvent::Died(entity) => {
-                    if graveyard.logic.death_explosives.get(&entity).is_some() {
-                        forge.explode(entity, random, components, graveyard);
+                CosmosEvent::Died {
+                    entity,
+                    body,
+                    explode,
+                } => {
+                    if let Some(body) = body
+                        && explode
+                    {
+                        forge.explode(body, random, components);
                     }
 
-                    tracker.death(&entity, bus);
-                    self.dead.push(entity);
+                    tracker.death(entity, bus);
                 }
                 CosmosEvent::Collided {
                     alpha,
@@ -64,11 +63,11 @@ impl Processor {
 
 fn spawn_protected(a: Entity, b: Entity, components: &Components) -> bool {
     let protected = |a, b| {
-        let Some(_) = components.logic.spawn_protections.get(&a) else {
+        let Some(_) = components.logic.spawn_protections.get(a) else {
             return false;
         };
 
-        let Some(owner) = components.logic.owners.get(&a) else {
+        let Some(owner) = components.logic.owners.get(a) else {
             return false;
         };
 

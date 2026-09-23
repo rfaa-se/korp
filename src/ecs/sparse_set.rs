@@ -9,9 +9,9 @@ pub struct SparseSet<T> {
 impl<T> SparseSet<T> {
     const TOMBSTONE: usize = u16::MAX as usize;
 
-    pub fn new(capacity: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            sparse: vec![Self::TOMBSTONE; capacity],
+            sparse: vec![Self::TOMBSTONE; Self::TOMBSTONE],
             dense: Vec::new(),
             entities: Vec::new(),
         }
@@ -24,7 +24,7 @@ impl<T> SparseSet<T> {
         }
 
         // replace component if entity already has it
-        if let Some(c) = self.get_mut(&entity) {
+        if let Some(c) = self.get_mut(entity) {
             *c = component;
             return;
         }
@@ -64,19 +64,19 @@ impl<T> SparseSet<T> {
         self.dense.pop()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&Entity, &T)> {
-        self.entities.iter().zip(self.dense.iter())
+    pub fn iter(&self) -> impl Iterator<Item = (Entity, &T)> {
+        self.entities.iter().cloned().zip(self.dense.iter())
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&Entity, &mut T)> {
-        self.entities.iter().zip(self.dense.iter_mut())
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (Entity, &mut T)> {
+        self.entities.iter().cloned().zip(self.dense.iter_mut())
     }
 
     pub fn _len(&self) -> usize {
         self.dense.len()
     }
 
-    pub fn get(&self, entity: &Entity) -> Option<&T> {
+    pub fn get(&self, entity: Entity) -> Option<&T> {
         let index = *self.sparse.get(entity.index as usize)?;
 
         if index == Self::TOMBSTONE {
@@ -90,7 +90,7 @@ impl<T> SparseSet<T> {
         Some(&self.dense[index])
     }
 
-    pub fn get_mut(&mut self, entity: &Entity) -> Option<&mut T> {
+    pub fn get_mut(&mut self, entity: Entity) -> Option<&mut T> {
         let index = *self.sparse.get(entity.index as usize)?;
 
         if index == Self::TOMBSTONE {

@@ -18,7 +18,7 @@ impl Flint {
     pub const PI: Self = Self::from_raw((31415 * Self::SCALE) / 10000);
     pub const FRAC_PI_2: Self = Self::from_raw(Self::PI.raw / 2);
     pub const DEG2RAD: Self = Self::from_raw(Self::PI.raw / 180);
-    pub const RAD2DEG: Self = Self::from_raw(180 / Self::PI.raw);
+    pub const RAD2DEG: Self = Self::from_raw((180 << Self::SHIFT) / Self::PI.raw);
 
     const SHIFT: i32 = 16;
     const SCALE: i32 = 1 << Self::SHIFT;
@@ -209,7 +209,7 @@ impl Div for Flint {
 
 impl DivAssign for Flint {
     fn div_assign(&mut self, rhs: Self) {
-        self.raw = ((self.raw as i64) * (Self::SCALE as i64) / rhs.raw as i64) as i32;
+        *self = *self / rhs;
     }
 }
 

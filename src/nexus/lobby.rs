@@ -69,34 +69,29 @@ impl Lobby {
     }
 
     pub fn input(&mut self, input: &Input) {
-        match self.state {
-            State::Idle { .. } => {
-                if input.is_pressed(&self.keybindings.start) && self.host {
-                    self.actions.push(Action::Launch);
-                }
-
-                if input.is_pressed(&self.keybindings.exit) {
-                    self.actions.push(Action::Leave);
-                }
+        if let State::Idle = self.state {
+            if input.is_pressed(&self.keybindings.start) && self.host {
+                self.actions.push(Action::Launch);
             }
-            _ => (),
+
+            if input.is_pressed(&self.keybindings.exit) {
+                self.actions.push(Action::Leave);
+            }
         }
     }
 
     pub fn render(&mut self, _renderer: &mut Renderer, _alpha: f32) {}
 
     pub fn event(&mut self, event: &Event) {
-        match (&self.state, event) {
-            (
-                State::LaunchAwait { .. },
-                Event::Network(IntentEvent::Event(NetworkEvent::Launched { seed, delay })),
-            ) => {
-                self.actions.push(Action::Launched {
-                    seed: *seed,
-                    delay: *delay,
-                });
-            }
-            _ => (),
+        if let (
+            State::LaunchAwait { .. },
+            Event::Network(IntentEvent::Event(NetworkEvent::Launched { seed, delay })),
+        ) = (&self.state, event)
+        {
+            self.actions.push(Action::Launched {
+                seed: *seed,
+                delay: *delay,
+            });
         }
     }
 }

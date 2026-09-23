@@ -59,8 +59,7 @@ impl Add for Vec2<f32> {
 
 impl AddAssign for Vec2<f32> {
     fn add_assign(&mut self, rhs: Self) {
-        self.x += rhs.x;
-        self.y += rhs.y;
+        *self = *self + rhs;
     }
 }
 

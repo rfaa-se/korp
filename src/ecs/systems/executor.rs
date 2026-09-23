@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use korp_engine::{misc::Morph, shapes::Rectangle as EngineRectangle};
 use korp_math::{Flint, Random, Vec2};
 
@@ -78,13 +80,13 @@ fn vertices(components: &mut Components) {
             components
                 .logic
                 .vertices
-                .insert(*entity, Morph::new(old, new));
+                .insert(entity, Morph::new(old, new));
         }
     }
 }
 
 fn hitboxes(components: &mut Components) {
-    for (&entity, vertices) in components.logic.vertices.iter() {
+    for (entity, vertices) in components.logic.vertices.iter() {
         let Some((xmin, xmax, ymin, ymax)) = vertices
             .old
             .iter()
@@ -128,12 +130,12 @@ fn spawn_protections(components: &mut Components) {
             continue;
         };
 
-        let Some(hitbox_owner) = components.logic.hitboxes.get(&owner.entity) else {
+        let Some(hitbox_owner) = components.logic.hitboxes.get(owner.entity) else {
             continue;
         };
 
         if !hitbox_owner.overlaps(hitbox_entity) {
-            removed.push(*entity);
+            removed.push(entity);
         }
     }
 
@@ -189,13 +191,15 @@ fn collisions(components: &mut Components, quadtree: &Quadtree, events: &mut Vec
         true
     };
 
+    let mut collisions = HashSet::new();
+
     for node in quadtree.nodes() {
         let group = node
             .content()
             .iter()
             .filter_map(|(entity, hitbox)| {
-                let filter = components.logic.collision_filters.get(entity);
-                let vertices = components.logic.vertices.get(entity);
+                let filter = components.logic.collision_filters.get(*entity);
+                let vertices = components.logic.vertices.get(*entity);
 
                 if let (Some(filter), Some(vertices)) = (filter, vertices) {
                     return Some((entity, hitbox, filter, vertices));
@@ -222,14 +226,18 @@ fn collisions(components: &mut Components, quadtree: &Quadtree, events: &mut Vec
 
                 // TODO: need to check values between old and new + rotation
                 if intersecting(&vertices1.new, &vertices2.new) {
-                    events.push(CosmosEvent::Collided {
-                        alpha: **entity1,
-                        beta: **entity2,
-                        mtv: Flint::ZERO,
-                    });
+                    collisions.insert((**entity1, **entity2));
                 }
             }
         }
+    }
+
+    for (entity1, entity2) in collisions {
+        events.push(CosmosEvent::Collided {
+            alpha: entity1,
+            beta: entity2,
+            mtv: Flint::ZERO,
+        });
     }
 }
 
@@ -246,7 +254,7 @@ fn morph_hitboxes_render(components: &mut Components) {
 }
 
 fn bodies_render(components: &mut Components) {
-    for (&entity, lb) in components.logic.bodies.iter() {
+    for (entity, lb) in components.logic.bodies.iter() {
         let body = Body {
             centroid: lb.new.centroid.into(),
             rotation: lb.new.rotation.into(),
@@ -264,7 +272,7 @@ fn bodies_render(components: &mut Components) {
             color: lb.new.color,
         };
 
-        if let Some(rb) = components.render.bodies.get_mut(&entity) {
+        if let Some(rb) = components.render.bodies.get_mut(entity) {
             rb.new = body;
         } else {
             components.render.bodies.insert(
@@ -294,7 +302,7 @@ fn bodies_render(components: &mut Components) {
 }
 
 fn hitboxes_render(components: &mut Components) {
-    for (&entity, lhb) in components.logic.hitboxes.iter() {
+    for (entity, lhb) in components.logic.hitboxes.iter() {
         let rectangle = EngineRectangle {
             x: lhb.x.into(),
             y: lhb.y.into(),
@@ -302,7 +310,7 @@ fn hitboxes_render(components: &mut Components) {
             height: lhb.height.into(),
         };
 
-        if let Some(rhb) = components.render.hitboxes.get_mut(&entity) {
+        if let Some(rhb) = components.render.hitboxes.get_mut(entity) {
             rhb.new = rectangle;
         } else {
             components
@@ -355,7 +363,11 @@ fn motions(components: &mut Components) {
 
         // set updated rotation
         if motion.rotation_speed != Flint::ZERO {
-            body.new.rotation = body.new.rotation.rotated(motion.rotation_speed);
+            body.new.rotation = body
+                .new
+                .rotation
+                .rotated(motion.rotation_speed)
+                .normalized();
         }
 
         let direction = motion.velocity.normalized();
@@ -388,7 +400,7 @@ fn out_of_cosmos_bounds(
     components: &mut Components,
     commands: &mut Vec<Command>,
 ) {
-    for (&entity, hitbox) in components.logic.hitboxes.iter() {
+    for (entity, hitbox) in components.logic.hitboxes.iter() {
         if !bounds.overlaps(hitbox) {
             commands.push(Command::Kill(entity));
         }
@@ -396,19 +408,19 @@ fn out_of_cosmos_bounds(
 }
 
 fn accelerators(components: &mut Components, commands: &mut Vec<Command>) {
-    for (&entity, _) in components.logic.accelerators.iter() {
+    for (entity, _) in components.logic.accelerators.iter() {
         commands.push(Command::Accelerate(entity));
     }
 }
 
 fn left_rotators(components: &mut Components, commands: &mut Vec<Command>) {
-    for (&entity, _) in components.logic.left_rotators.iter() {
+    for (entity, _) in components.logic.left_rotators.iter() {
         commands.push(Command::RotateLeft(entity));
     }
 }
 
 fn right_rotators(components: &mut Components, commands: &mut Vec<Command>) {
-    for (&entity, _) in components.logic.right_rotators.iter() {
+    for (entity, _) in components.logic.right_rotators.iter() {
         commands.push(Command::RotateRight(entity));
     }
 }
@@ -417,7 +429,7 @@ fn rebuild_quadtree(components: &Components, quadtree: &mut Quadtree) {
     quadtree.clear();
 
     for (entity, hitbox) in components.logic.hitboxes.iter() {
-        quadtree.insert(*entity, *hitbox);
+        quadtree.insert(entity, *hitbox);
     }
 }
 
@@ -444,19 +456,22 @@ fn exhaust_emitters(components: &mut Components, random: &mut Random, commands: 
             let jitter_inv = Flint::ONE / Flint::from_i16(jitter_max as i16);
 
             while distance > Flint::ZERO {
-                let x = -Flint::from_i16(random.range(0, distance.to_i16().max(1) as u64) as i16);
-                let y = Flint::from_i16(random.range(0, width) as i16) - half;
+                let x =
+                    -Flint::from_i16(random.range_u64(0, distance.to_i16().max(1) as u64) as i16);
+                let y = Flint::from_i16(random.range_u64(0, width) as i16) - half;
                 let rotated =
                     (emitter.relative_position + Vec2::new(x, y)).rotated_v(body.new.rotation);
                 let centroid = body.new.centroid + rotated;
                 let speed = Flint::new(
-                    random.range(0, 4) as i16,
-                    random.range(0, u16::MAX as u64) as u16,
+                    random.range_u64(0, 4) as i16,
+                    random.range_u64(0, u16::MAX as u64) as u16,
                 );
 
                 let jitter = Vec2::new(
-                    Flint::from_i16(random.range(0, jitter_max) as i16 - jitter_half) * jitter_inv,
-                    Flint::from_i16(random.range(0, jitter_max) as i16 - jitter_half) * jitter_inv,
+                    Flint::from_i16(random.range_u64(0, jitter_max) as i16 - jitter_half)
+                        * jitter_inv,
+                    Flint::from_i16(random.range_u64(0, jitter_max) as i16 - jitter_half)
+                        * jitter_inv,
                 );
                 let direction = (direction + jitter).normalized();
 
@@ -466,7 +481,7 @@ fn exhaust_emitters(components: &mut Components, random: &mut Random, commands: 
                         centroid,
                         direction,
                         speed: relative_speed + speed,
-                        lifetime: random.range(4, 20) as u32,
+                        lifetime: random.range_u64(4, 20) as u32,
                     },
                 });
 

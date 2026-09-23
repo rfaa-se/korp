@@ -25,6 +25,14 @@ impl Camera {
         self.half_height = height * 0.5;
     }
 
+    pub fn to_screen(&self, point: Vec2<f32>) -> Vec2<f32> {
+        point - self.position + Vec2::new(self.half_width, self.half_height)
+    }
+
+    pub fn from_screen(&self, point: Vec2<f32>) -> Vec2<f32> {
+        point - Vec2::new(self.half_width, self.half_height) + self.position
+    }
+
     pub(crate) fn view_projection(&self) -> [[f32; 4]; 4] {
         let left = self.position.x - self.half_width;
         let right = self.position.x + self.half_width;

@@ -20,9 +20,6 @@ impl Color {
 
 impl From<Color> for u32 {
     fn from(value: Color) -> Self {
-        (value.r as u32) << 24
-            | (value.g as u32) << 16
-            | (value.b as u32) << 8
-            | (value.a as u32) << 0
+        (value.r as u32) << 24 | (value.g as u32) << 16 | (value.b as u32) << 8 | (value.a as u32)
     }
 }

@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Entity {
     pub index: u32,
     pub generation: u32,
@@ -33,10 +33,16 @@ impl EntityFactory {
         }
     }
 
-    pub fn destroy(&mut self, entity: Entity) {
-        if let Some(generation) = self.generations.get_mut(entity.index as usize) {
+    pub fn destroy(&mut self, entity: Entity) -> bool {
+        if let Some(generation) = self.generations.get_mut(entity.index as usize)
+            && *generation == entity.generation
+        {
             *generation += 1;
             self.free.push(entity.index);
+
+            return true;
         }
+
+        false
     }
 }

@@ -63,17 +63,14 @@ impl Menu {
     }
 
     pub fn input(&mut self, input: &Input) {
-        match self.state {
-            State::Idle => {
-                if input.is_pressed(&self.keybindings.host) {
-                    self.actions.push(Action::Host);
-                }
-
-                if input.is_pressed(&self.keybindings.connect) {
-                    self.actions.push(Action::Connect);
-                }
+        if let State::Idle = self.state {
+            if input.is_pressed(&self.keybindings.host) {
+                self.actions.push(Action::Host);
             }
-            _ => (),
+
+            if input.is_pressed(&self.keybindings.connect) {
+                self.actions.push(Action::Connect);
+            }
         }
     }
 

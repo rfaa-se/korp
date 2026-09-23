@@ -75,6 +75,7 @@ impl Quadtree {
                     entities_hitboxes.push((entity, hitbox));
                 } else {
                     self.subdivide(idx);
+                    self.insert_into(idx, entity, hitbox);
                 }
             }
             NodeKind::Branch { indexes } => {
@@ -122,7 +123,7 @@ impl Node {
         match self.kind {
             NodeKind::Leaf {
                 content: ref entities_hitboxes,
-            } => &entities_hitboxes,
+            } => entities_hitboxes,
             NodeKind::Branch { .. } => &[],
         }
     }

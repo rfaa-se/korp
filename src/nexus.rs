@@ -37,6 +37,7 @@ pub enum Action {
     Transition(State),
 }
 
+#[allow(clippy::large_enum_variant)]
 enum Context {
     Menu(Menu),
     Lobby(Lobby),
