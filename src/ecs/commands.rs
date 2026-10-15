@@ -1,4 +1,4 @@
-use korp_math::{Flint, Vec2};
+use korp_math::{Flint, Random, Vec2};
 
 use crate::{
     bus::events::CosmosEvent,
@@ -47,6 +47,7 @@ impl Command {
         &self,
         components: &mut Components,
         forge: &mut Forge,
+        random: &mut Random,
         events: &mut Vec<CosmosEvent>,
     ) {
         match self {
@@ -55,7 +56,7 @@ impl Command {
             Command::RotateLeft(entity) => rotate_left(*entity, components),
             Command::RotateRight(entity) => rotate_right(*entity, components),
             Command::Shoot(entity) => shoot(*entity, components, forge, events),
-            Command::Kill(entity) => kill(*entity, components, forge, events),
+            Command::Kill(entity) => kill(*entity, components, forge, random, events),
             Command::Spawn { id, kind } => spawn(id, kind, components, forge, events),
         }
     }
@@ -65,18 +66,18 @@ fn kill(
     entity: Entity,
     components: &mut Components,
     forge: &mut Forge,
+    random: &mut Random,
     events: &mut Vec<CosmosEvent>,
 ) {
     if forge.destroy(entity) {
-        let body = components.logic.bodies.remove(entity);
-
-        events.push(CosmosEvent::Died {
-            entity,
-            body: body.map(|x| x.new),
-            explode: components.logic.death_explosives.get(entity).is_some(),
-        });
+        if let Some(body) = components.logic.bodies.remove(entity)
+            && components.logic.death_explosives.get(entity).is_some()
+        {
+            forge.explode(body.new, random, components);
+        }
 
         components.destroy(entity);
+        events.push(CosmosEvent::Died(entity));
     }
 }
 
@@ -90,12 +91,10 @@ fn accelerate(entity: Entity, components: &mut Components) {
 
     motion.velocity += body.new.rotation * motion.acceleration;
 
-    if let Some(emitter) = components.logic.exhaust_emitters.get_mut(entity) {
-        emitter.lifetime += 1;
-
-        if emitter.lifetime > emitter.lifetime_maximum {
-            emitter.lifetime = emitter.lifetime_maximum;
-        }
+    if let Some(emitter) = components.logic.exhaust_emitters.get_mut(entity)
+        && emitter.age < emitter.lifetime
+    {
+        emitter.age += 1;
     }
 }
 
@@ -107,7 +106,17 @@ fn decelerate(entity: Entity, components: &mut Components) {
         return;
     };
 
+    let speed = motion.velocity.dot(&body.new.rotation);
+    if speed <= motion.speed_minimum {
+        return;
+    }
+
     motion.velocity -= body.new.rotation * motion.acceleration;
+
+    let speed = motion.velocity.dot(&body.new.rotation);
+    if speed < motion.speed_minimum {
+        motion.velocity += body.new.rotation * (motion.speed_minimum - speed);
+    }
 }
 
 fn rotate_left(entity: Entity, components: &mut Components) {

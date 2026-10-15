@@ -25,6 +25,7 @@ impl<T> SparseSet<T> {
 
         // replace component if entity already has it
         if let Some(c) = self.get_mut(entity) {
+            println!("replaced {:?} {:?}", entity, std::any::type_name::<T>());
             *c = component;
             return;
         }

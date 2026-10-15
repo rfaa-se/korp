@@ -6,9 +6,7 @@ use korp_engine::CoreEvent;
 use korp_math::{Flint, Vec2};
 
 use crate::{
-    ecs::{
-        commands::Command, components::Body, cosmos::Configure, entities::Entity, tracker::Track,
-    },
+    ecs::{commands::Command, cosmos::Configure, entities::Entity, tracker::Track},
     network,
     nexus::{self, game, lobby, menu},
 };
@@ -43,11 +41,7 @@ pub enum CosmosEvent {
         id: Option<usize>,
         entity: Entity,
     },
-    Died {
-        entity: Entity,
-        body: Option<Body<Flint>>,
-        explode: bool,
-    },
+    Died(Entity),
     TrackedDeath(Entity),
     TrackedMovement {
         entity: Entity,

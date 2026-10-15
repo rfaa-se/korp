@@ -49,5 +49,5 @@ fn unpack(c: u32) -> vec4<f32> {
     let b = f32((c >> 8) & 0xff);
     let a = f32((c >> 0) & 0xff);
 
-    return vec4(r, g, b, a);
+    return vec4(r, g, b, a) / 255.0;
 }

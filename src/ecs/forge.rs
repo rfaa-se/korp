@@ -3,9 +3,8 @@ use korp_math::{Flint, Random, Vec2};
 
 use crate::ecs::{
     components::{
-        Accelerator, Body, CollisionFilter, Components, DeathExplosive, ExhaustEmitter,
-        LeftRotator, Motion, Owner, Particle, Rectangle, RightRotator, Shape, SpawnProtection,
-        Triangle,
+        Accelerator, Body, CollisionFilter, Components, DeathExplosive, DeathStationary,
+        ExhaustEmitter, Motion, Owner, Particle, Rectangle, Shape, SpawnProtection, Triangle,
     },
     entities::{Entity, EntityFactory},
     systems::COSMIC_DRAG,
@@ -76,8 +75,8 @@ impl Forge {
         components.logic.exhaust_emitters.insert(
             entity,
             ExhaustEmitter {
-                lifetime_maximum: 5,
-                lifetime: 0,
+                lifetime: 5,
+                age: 0,
                 width: Flint::from_i16(7),
                 relative_position: Vec2::new(
                     (left.x + right.x) * Flint::ZERO_FIVE,
@@ -212,7 +211,7 @@ impl Forge {
         components: &mut Components,
     ) {
         components.logic.particles.push(Particle {
-            lifetime,
+            age: lifetime,
             velocity: direction * speed,
             body: Morph::one(Body {
                 centroid,
@@ -259,7 +258,7 @@ impl Forge {
 
         match body.shape {
             Shape::Triangle(triangle) => {
-                let size = 3;
+                let size = 5;
                 let mut shards = vec![(body.centroid, triangle)];
 
                 while shards.len() < size {
@@ -282,7 +281,7 @@ impl Forge {
                     shards.push((c3, s3));
                 }
 
-                for (i, (centroid, shard)) in shards.into_iter().enumerate() {
+                for (centroid, shard) in shards {
                     let e = self.factory.create();
                     let body = Body {
                         centroid,
@@ -290,27 +289,29 @@ impl Forge {
                         shape: Shape::Triangle(shard),
                         color: body.color,
                     };
-
-                    if i % 2 == 0 {
-                        components.logic.left_rotators.insert(e, LeftRotator);
-                    } else {
-                        components.logic.right_rotators.insert(e, RightRotator);
-                    }
-
                     components.logic.bodies.insert(e, Morph::one(body));
+
+                    let is_even = random.range_u16(0, 255).is_multiple_of(2);
+                    let speed = Flint::from_i16(random.range_u16(8, 12) as i16);
+                    let velocity = (centroid - centroid_origin).normalized() * speed;
                     components.logic.motions.insert(
                         e,
                         Motion {
-                            velocity: (centroid - centroid_origin).normalized() * Flint::new(8, 0),
-                            speed_maximum: 8.into(),
-                            speed_minimum: 0.into(),
-                            acceleration: Flint::new(1, 0),
-                            rotation_speed: 10.into(),
-                            rotation_speed_maximum: 10.into(),
-                            rotation_speed_minimum: 0.into(),
-                            rotation_acceleration: Flint::new(0, Flint::POINT_ONE),
+                            velocity,
+                            speed_maximum: speed,
+                            speed_minimum: Flint::ZERO,
+                            acceleration: Flint::ZERO,
+                            rotation_speed: if is_even { -speed } else { speed },
+                            rotation_speed_maximum: speed,
+                            rotation_speed_minimum: -speed,
+                            rotation_acceleration: Flint::ZERO,
                         },
                     );
+
+                    components
+                        .logic
+                        .death_stationaries
+                        .insert(e, DeathStationary);
                 }
             }
             Shape::Rectangle(_) => {

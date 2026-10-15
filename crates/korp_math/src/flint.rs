@@ -10,6 +10,7 @@ impl Flint {
     pub const POINT_ONE: u16 = Self::POINT_FIVE / 5;
 
     pub const ZERO_FIVE: Self = Self::new(0, Self::POINT_FIVE);
+    pub const ZERO_ONE: Self = Self::new(0, Self::POINT_ONE);
 
     pub const ZERO: Self = Self::new(0, 0);
     pub const ONE: Self = Self::new(1, 0);

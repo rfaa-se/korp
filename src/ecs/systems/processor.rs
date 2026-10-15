@@ -1,10 +1,6 @@
-use korp_math::Random;
-
 use crate::{
     bus::{Bus, events::CosmosEvent},
-    ecs::{
-        commands::Command, components::Components, entities::Entity, forge::Forge, tracker::Tracker,
-    },
+    ecs::{commands::Command, components::Components, entities::Entity, tracker::Tracker},
 };
 
 pub struct Processor {}
@@ -14,30 +10,17 @@ impl Processor {
         Self {}
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
-        random: &mut Random,
         components: &mut Components,
         tracker: &mut Tracker,
         events: &mut Vec<CosmosEvent>,
         commands: &mut Vec<Command>,
-        forge: &mut Forge,
         bus: &mut Bus,
     ) {
         for event in events.drain(..) {
             match event {
-                CosmosEvent::Died {
-                    entity,
-                    body,
-                    explode,
-                } => {
-                    if let Some(body) = body
-                        && explode
-                    {
-                        forge.explode(body, random, components);
-                    }
-
+                CosmosEvent::Died(entity) => {
                     tracker.death(entity, bus);
                 }
                 CosmosEvent::Collided {

@@ -7,22 +7,30 @@ pub trait Transformable<T> {
     fn transform(&self) -> T;
 }
 
+impl Transformable<Body<f32>> for Body<Flint> {
+    fn transform(&self) -> Body<f32> {
+        Body {
+            centroid: self.centroid.into(),
+            rotation: self.rotation.into(),
+            shape: match self.shape {
+                Shape::Triangle(triangle) => Shape::Triangle(Triangle {
+                    top: triangle.top.into(),
+                    left: triangle.left.into(),
+                    right: triangle.right.into(),
+                }),
+                Shape::Rectangle(rectangle) => Shape::Rectangle(Rectangle {
+                    width: rectangle.width.into(),
+                    height: rectangle.height.into(),
+                }),
+            },
+            color: self.color,
+        }
+    }
+}
+
 impl Transformable<Morph<Body<f32>>> for Morph<Body<Flint>> {
     fn transform(&self) -> Morph<Body<f32>> {
-        Morph::new(
-            Body {
-                centroid: self.old.centroid.into(),
-                rotation: self.old.rotation.into(),
-                shape: self.old.shape.transform(),
-                color: self.old.color,
-            },
-            Body {
-                centroid: self.new.centroid.into(),
-                rotation: self.new.rotation.into(),
-                shape: self.new.shape.transform(),
-                color: self.new.color,
-            },
-        )
+        Morph::new(self.old.transform(), self.new.transform())
     }
 }
 

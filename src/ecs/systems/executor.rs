@@ -8,7 +8,7 @@ use crate::{
     ecs::{
         commands::{Command, SpawnKind},
         components::{
-            Body, Components, Rectangle, Shape, Triangle,
+            Components, DeathTimer,
             traits::{Transformable, Vertexable},
         },
     },
@@ -36,6 +36,8 @@ impl Executor {
         morph_bodies(components);
         morph_vertices(components);
         motions(components);
+        death_stationaries(components);
+        death_timers(components, commands);
         vertices(components);
         hitboxes(components);
         rebuild_quadtree(components, quadtree);
@@ -43,8 +45,6 @@ impl Executor {
         collisions(components, quadtree, events);
         out_of_cosmos_bounds(cosmos_bounds, components, commands);
         accelerators(components, commands);
-        left_rotators(components, commands);
-        right_rotators(components, commands);
         exhaust_emitters(components, random, commands);
         particles(components);
 
@@ -54,6 +54,51 @@ impl Executor {
         hitboxes_render(components);
         quadtree_nodes_render(components, quadtree);
         cosmos_bounds_render(components, cosmos_bounds);
+    }
+}
+
+fn death_stationaries(components: &mut Components) {
+    let mut removed = Vec::new();
+
+    for (entity, _) in components.logic.death_stationaries.iter() {
+        if let Some(motion) = components.logic.motions.get(entity) {
+            let speed = motion.velocity.len();
+
+            if speed == Flint::ZERO {
+                components.logic.death_timers.insert(
+                    entity,
+                    DeathTimer {
+                        lifetime: 36,
+                        age: 0,
+                    },
+                );
+
+                removed.push(entity);
+            }
+        }
+    }
+
+    for entity in removed {
+        components.logic.death_stationaries.remove(entity);
+    }
+}
+
+fn death_timers(components: &mut Components, commands: &mut Vec<Command>) {
+    for (entity, timer) in components.logic.death_timers.iter_mut() {
+        timer.age += 1;
+
+        if timer.age >= timer.lifetime {
+            commands.push(Command::Kill(entity));
+        }
+
+        if let Some(body) = components.logic.bodies.get_mut(entity) {
+            let alpha = match timer.lifetime == 0 {
+                true => u8::MAX,
+                false => (timer.age.min(timer.lifetime) * 255 / timer.lifetime) as u8,
+            };
+
+            body.new.color.a = u8::MAX - alpha;
+        }
     }
 }
 
@@ -216,6 +261,17 @@ fn collisions(components: &mut Components, quadtree: &Quadtree, events: &mut Vec
             current = remaining;
 
             for (entity2, hitbox2, filter2, vertices2) in remaining {
+                let both =
+                    if entity1.index < entity2.index && entity1.generation < entity2.generation {
+                        (**entity1, **entity2)
+                    } else {
+                        (**entity2, **entity1)
+                    };
+
+                if collisions.contains(&both) {
+                    continue;
+                }
+
                 if !filter1.is_collidable(filter2) {
                     continue;
                 }
@@ -226,7 +282,7 @@ fn collisions(components: &mut Components, quadtree: &Quadtree, events: &mut Vec
 
                 // TODO: need to check values between old and new + rotation
                 if intersecting(&vertices1.new, &vertices2.new) {
-                    collisions.insert((**entity1, **entity2));
+                    collisions.insert(both);
                 }
             }
         }
@@ -255,48 +311,10 @@ fn morph_hitboxes_render(components: &mut Components) {
 
 fn bodies_render(components: &mut Components) {
     for (entity, lb) in components.logic.bodies.iter() {
-        let body = Body {
-            centroid: lb.new.centroid.into(),
-            rotation: lb.new.rotation.into(),
-            shape: match lb.new.shape {
-                Shape::Triangle(triangle) => Shape::Triangle(Triangle {
-                    top: triangle.top.into(),
-                    left: triangle.left.into(),
-                    right: triangle.right.into(),
-                }),
-                Shape::Rectangle(rectangle) => Shape::Rectangle(Rectangle {
-                    width: rectangle.width.into(),
-                    height: rectangle.height.into(),
-                }),
-            },
-            color: lb.new.color,
-        };
-
         if let Some(rb) = components.render.bodies.get_mut(entity) {
-            rb.new = body;
+            rb.new = lb.new.transform();
         } else {
-            components.render.bodies.insert(
-                entity,
-                Morph::new(
-                    Body {
-                        centroid: lb.old.centroid.into(),
-                        rotation: lb.old.rotation.into(),
-                        shape: match lb.old.shape {
-                            Shape::Triangle(triangle) => Shape::Triangle(Triangle {
-                                top: triangle.top.into(),
-                                left: triangle.left.into(),
-                                right: triangle.right.into(),
-                            }),
-                            Shape::Rectangle(rectangle) => Shape::Rectangle(Rectangle {
-                                width: rectangle.width.into(),
-                                height: rectangle.height.into(),
-                            }),
-                        },
-                        color: lb.old.color,
-                    },
-                    body,
-                ),
-            );
+            components.render.bodies.insert(entity, lb.transform());
         }
     }
 }
@@ -373,23 +391,28 @@ fn motions(components: &mut Components) {
         let direction = motion.velocity.normalized();
 
         // apply cosmic drag for velocity
-        motion.velocity -= direction * COSMIC_DRAG;
-
-        // make a full stop if entity has suddenly switched direction
-        if direction.dot(&motion.velocity.normalized()) < Flint::ZERO {
+        if motion.velocity.len_sqr() <= COSMIC_DRAG * COSMIC_DRAG {
             motion.velocity = Vec2::ZERO;
+        } else {
+            motion.velocity -= direction * COSMIC_DRAG;
         }
 
         let speed = motion.velocity.len_sqr();
         let speed_max = motion.speed_maximum * motion.speed_maximum;
-        let speed_min = -(motion.speed_minimum * motion.speed_minimum);
 
-        // ensure min/max velocity
+        // ensure max velocity
         if speed > speed_max {
+            println!("a: {:?}", motion.velocity);
             motion.velocity = direction * motion.speed_maximum;
-        } else if speed < speed_min {
-            motion.velocity = direction * motion.speed_minimum;
+            println!("b: {:?}", motion.velocity);
         }
+        println!("c: {:?}", motion.velocity);
+        println!(
+            "d: {:?}, {:?}, {:?}",
+            entity,
+            components.logic.death_explosives.get(entity).is_some(),
+            components.logic.death_timers.get(entity).is_some()
+        );
 
         body.new.centroid += motion.velocity;
     }
@@ -413,18 +436,6 @@ fn accelerators(components: &mut Components, commands: &mut Vec<Command>) {
     }
 }
 
-fn left_rotators(components: &mut Components, commands: &mut Vec<Command>) {
-    for (entity, _) in components.logic.left_rotators.iter() {
-        commands.push(Command::RotateLeft(entity));
-    }
-}
-
-fn right_rotators(components: &mut Components, commands: &mut Vec<Command>) {
-    for (entity, _) in components.logic.right_rotators.iter() {
-        commands.push(Command::RotateRight(entity));
-    }
-}
-
 fn rebuild_quadtree(components: &Components, quadtree: &mut Quadtree) {
     quadtree.clear();
 
@@ -438,9 +449,9 @@ fn exhaust_emitters(components: &mut Components, random: &mut Random, commands: 
         .logic
         .exhaust_emitters
         .iter_mut()
-        .filter(|(_, emitter)| emitter.lifetime > 0)
+        .filter(|(_, emitter)| emitter.age > 0)
     {
-        emitter.lifetime -= 1;
+        emitter.age -= 1;
 
         if let (Some(body), Some(motion)) = (
             components.logic.bodies.get(entity),
@@ -495,11 +506,11 @@ fn particles(components: &mut Components) {
     components.render.particles.clear();
 
     components.logic.particles.retain_mut(|x| {
-        if x.lifetime == 0 {
+        if x.age == 0 {
             return false;
         }
 
-        x.lifetime -= 1;
+        x.age -= 1;
 
         let alpha = 36;
 
@@ -507,7 +518,7 @@ fn particles(components: &mut Components) {
             x.body.new.color.a -= alpha;
 
             if x.body.new.color.a < alpha {
-                x.lifetime = 0;
+                x.age = 0;
             }
         }
 

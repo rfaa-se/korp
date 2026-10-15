@@ -12,14 +12,14 @@ pub struct Logic {
     pub hitboxes: SparseSet<EngineRectangle<Flint>>,
     pub motions: SparseSet<Motion>,
     pub accelerators: SparseSet<Accelerator>,
-    pub left_rotators: SparseSet<LeftRotator>,
-    pub right_rotators: SparseSet<RightRotator>,
     pub collision_filters: SparseSet<CollisionFilter>,
     pub vertices: SparseSet<Morph<Vec<Vec2<Flint>>>>,
     pub owners: SparseSet<Owner>,
     pub spawn_protections: SparseSet<SpawnProtection>,
     pub exhaust_emitters: SparseSet<ExhaustEmitter>,
     pub death_explosives: SparseSet<DeathExplosive>,
+    pub death_stationaries: SparseSet<DeathStationary>,
+    pub death_timers: SparseSet<DeathTimer>,
 }
 
 pub struct Render {
@@ -43,14 +43,14 @@ impl Logic {
             hitboxes: SparseSet::new(),
             motions: SparseSet::new(),
             accelerators: SparseSet::new(),
-            left_rotators: SparseSet::new(),
-            right_rotators: SparseSet::new(),
             collision_filters: SparseSet::new(),
             vertices: SparseSet::new(),
             owners: SparseSet::new(),
             spawn_protections: SparseSet::new(),
             exhaust_emitters: SparseSet::new(),
             death_explosives: SparseSet::new(),
+            death_stationaries: SparseSet::new(),
+            death_timers: SparseSet::new(),
         }
     }
 }
@@ -83,14 +83,14 @@ impl Components {
         l.hitboxes.remove(entity);
         l.motions.remove(entity);
         l.accelerators.remove(entity);
-        l.left_rotators.remove(entity);
-        l.right_rotators.remove(entity);
         l.collision_filters.remove(entity);
         l.vertices.remove(entity);
         l.owners.remove(entity);
         l.spawn_protections.remove(entity);
         l.exhaust_emitters.remove(entity);
         l.death_explosives.remove(entity);
+        l.death_stationaries.remove(entity);
+        l.death_timers.remove(entity);
 
         r.bodies.remove(entity);
         r.hitboxes.remove(entity);
@@ -136,8 +136,6 @@ pub struct Rectangle<T> {
 }
 
 pub struct Accelerator;
-pub struct LeftRotator;
-pub struct RightRotator;
 
 pub struct CollisionFilter {
     pub category: u32,
@@ -151,17 +149,24 @@ pub struct Owner {
 pub struct SpawnProtection;
 
 pub struct ExhaustEmitter {
-    pub lifetime_maximum: u32,
     pub lifetime: u32,
+    pub age: u32,
     pub width: Flint,
     pub relative_position: Vec2<Flint>,
     pub relative_direction: Vec2<Flint>,
 }
 
 pub struct Particle {
-    pub lifetime: u32,
+    pub age: u32,
     pub velocity: Vec2<Flint>,
     pub body: Morph<Body<Flint>>,
 }
 
 pub struct DeathExplosive;
+
+pub struct DeathStationary;
+
+pub struct DeathTimer {
+    pub lifetime: u32,
+    pub age: u32,
+}
